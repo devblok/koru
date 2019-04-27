@@ -2,16 +2,16 @@
 
 
 [[projects]]
-  branch = "v3.3"
-  digest = "1:dc799d639ed0e725ee23666ad21b7c36d155edf453550a56363e0eeda06c45eb"
-  name = "github.com/vulkan-go/glfw"
-  packages = ["v3.3/glfw"]
+  branch = "master"
+  digest = "1:dfc16f39f657466836cb1c28bdbbe6c464afee09f920229a4dd38dccb0cdef4a"
+  name = "github.com/vulkan-go/vulkan"
+  packages = ["."]
   pruneopts = "UT"
-  revision = "cac57eedc4a5d00773c5758e84764c0040e1aa28"
+  revision = "df48e8cc153843e64eedaf872453d6d07a77dd8c"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  input-imports = ["github.com/vulkan-go/glfw/v3.3/glfw"]
+  input-imports = ["github.com/vulkan-go/vulkan"]
   solver-name = "gps-cdcl"
   solver-version = 1

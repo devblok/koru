@@ -1,7 +1,11 @@
 package device
 
 type PhysicalDeviceInfo struct {
-	Id int
+	Id         int
+	Invalid    bool
+	Extensions []string
+	Layers     []string
+	Memory     uint64
 }
 
 type Device interface {
