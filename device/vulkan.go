@@ -15,17 +15,25 @@ var DefaultVulkanApplicationInfo *vk.ApplicationInfo = &vk.ApplicationInfo{
 }
 
 func NewVulkanDevice(appInfo *vk.ApplicationInfo, window uintptr) (Device, error) {
+	if err := vk.SetDefaultGetInstanceProcAddr(); err != nil {
+		return nil, err
+	}
+
+	if err := vk.Init(); err != nil {
+		return nil, err
+	}
+
 	v := &Vulkan{}
 
 	var extensions []string
-	instanceInfo := &vk.InstanceCreateInfo{
+	instanceInfo := vk.InstanceCreateInfo{
 		SType:                   vk.StructureTypeInstanceCreateInfo,
 		PApplicationInfo:        appInfo,
 		EnabledExtensionCount:   uint32(len(extensions)),
 		PpEnabledExtensionNames: extensions,
 	}
 
-	if err := vk.Error(vk.CreateInstance(instanceInfo, nil, &v.instance)); err != nil {
+	if err := vk.Error(vk.CreateInstance(&instanceInfo, nil, &v.instance)); err != nil {
 		return nil, err
 	} else {
 		vk.InitInstance(v.instance)
@@ -67,42 +75,52 @@ func (v *Vulkan) PhysicalDevices() []PhysicalDeviceInfo {
 	}
 
 	for i := 0; i < len(v.availableDevices); i++ {
+		// Get extension info
 		var numDeviceExtensions uint32
-		if err := vk.EnumerateDeviceExtensionProperties(v.availableDevices[i], "", &numDeviceExtensions, nil); err != nil {
+		if err := vk.Error(vk.EnumerateDeviceExtensionProperties(v.availableDevices[i], "", &numDeviceExtensions, nil)); err != nil {
 			pdi[i].Invalid = true
 		}
 		deviceExt := make([]vk.ExtensionProperties, numDeviceExtensions)
-		if err := vk.EnumerateDeviceExtensionProperties(v.availableDevices[i], "", &numDeviceExtensions, deviceExt); err != nil {
+		if err := vk.Error(vk.EnumerateDeviceExtensionProperties(v.availableDevices[i], "", &numDeviceExtensions, deviceExt)); err != nil {
 			pdi[i].Invalid = true
 		}
 		for _, ext := range deviceExt {
 			ext.Deref()
-			append(pdi[i].Extensions, vk.ToString(ext.ExtensionName[:])
+			pdi[i].Extensions = append(pdi[i].Extensions, vk.ToString(ext.ExtensionName[:]))
 		}
 
+		// Get layers info
 		var numDeviceLayers uint32
-		if err := vk.EnumerateDeviceLayerProperties(v.availableDevices[i], &numDeviceLayers, nil); err != nil {
+		if err := vk.Error(vk.EnumerateDeviceLayerProperties(v.availableDevices[i], &numDeviceLayers, nil)); err != nil {
 			pdi[i].Invalid = true
 		}
 		deviceLayers := make([]vk.LayerProperties, numDeviceLayers)
-		if err := vk.EnumerateDeviceLayerProperties(v.availableDevices[i], &numDeviceLayers, deviceLayers); err != nil {
+		if err := vk.Error(vk.EnumerateDeviceLayerProperties(v.availableDevices[i], &numDeviceLayers, deviceLayers)); err != nil {
 			pdi[i].Invalid = true
 		}
 		for _, layer := range deviceLayers {
 			layer.Deref()
-			append(pdi[i].Layers, vk.ToString(layer.LayerName[:]))
-		}
-		var memoryProperties vk.PhysicalDeviceMemoryProperties
-		if err := vk.GetPhysicalDeviceMemoryProperties(v.availableDevices[i], &memoryProperties); err != nil {
-			pdi[i].Invalid = true
+			pdi[i].Layers = append(pdi[i].Layers, vk.ToString(layer.LayerName[:]))
 		}
 
+		// Get memory info
+		var memoryProperties vk.PhysicalDeviceMemoryProperties
+		vk.GetPhysicalDeviceMemoryProperties(v.availableDevices[i], &memoryProperties)
 		memoryProperties.Deref()
-		for iMem := 0; iMem < memoryProperties.MemoryHeapCount, iMem++ {
-			pdi[i].Memory = pdi[i].Memory + memoryProperties.MemoryHeaps[iMem].DeviceSize
+		for iMem := (uint32)(0); iMem < memoryProperties.MemoryHeapCount; iMem++ {
+			pdi[i].Memory = pdi[i].Memory + memoryProperties.MemoryHeaps[iMem].Size
 		}
+
+		// Get general device info
+		var physicalDeviceProperties vk.PhysicalDeviceProperties
+		vk.GetPhysicalDeviceProperties(v.availableDevices[i], &physicalDeviceProperties)
+		physicalDeviceProperties.Deref()
+		pdi[i].Id = (int)(physicalDeviceProperties.DeviceID)
+		pdi[i].VendorId = (int)(physicalDeviceProperties.VendorID)
+		pdi[i].Name = vk.ToString(physicalDeviceProperties.DeviceName[:])
+		pdi[i].DriverVersion = (int)(physicalDeviceProperties.DriverVersion)
 	}
-	return pd
+	return pdi
 }
 
 func (vd *Vulkan) Destroy() {

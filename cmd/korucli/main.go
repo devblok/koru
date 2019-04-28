@@ -8,12 +8,17 @@ import (
 )
 
 func main() {
+	
 	appDevice, err := device.NewVulkanDevice(device.DefaultVulkanApplicationInfo, 0)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("%s", json.Marshal(appDevice.PhysicalDevices()))
+	if bytes, err := json.Marshal(appDevice.PhysicalDevices()); err == nil {
+		fmt.Printf("%s", bytes)
+	} else {
+		panic(err)
+	}
 
 	appDevice.Destroy()
 }
