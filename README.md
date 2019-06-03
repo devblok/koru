@@ -1,3 +1,6 @@
+[![Maintainability](https://api.codeclimate.com/v1/badges/db34287dcd1f3ad965cc/maintainability)](https://codeclimate.com/github/koru3d/koru/maintainability)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/db34287dcd1f3ad965cc/test_coverage)](https://codeclimate.com/github/koru3d/koru/test_coverage)
+
 # Koru3D
 
 At this stage, this project is merely my playground to try out Vulkan along
