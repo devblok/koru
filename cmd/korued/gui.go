@@ -9,10 +9,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var staticResources packr.Box
+// Global variables for GTK and resources
+var (
+	Builder         *gtk.Builder
+	StaticResources packr.Box
+)
 
 func init() {
-	staticResources = packr.NewBox("./resources")
+	StaticResources = packr.NewBox("./resources")
 }
 
 func buildInterface() (*gtk.Application, error) {
@@ -28,7 +32,7 @@ func buildInterface() (*gtk.Application, error) {
 	app.Connect("activate", func() {
 		log.Info("Application activating")
 
-		resource, err := staticResources.FindString("korued.glade")
+		resource, err := StaticResources.FindString("korued.glade")
 		if err != nil {
 			log.Fatal(err)
 			panic(err)

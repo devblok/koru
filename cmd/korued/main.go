@@ -7,8 +7,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var Builder *gtk.Builder
-
 func init() {
 	gtk.Init(&os.Args)
 }
