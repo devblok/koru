@@ -2,6 +2,7 @@ package device
 
 import (
 	"fmt"
+	"unsafe"
 
 	vk "github.com/vulkan-go/vulkan"
 )
@@ -11,12 +12,16 @@ var DefaultVulkanApplicationInfo *vk.ApplicationInfo = &vk.ApplicationInfo{
 	ApiVersion:         vk.MakeVersion(1, 0, 0),
 	ApplicationVersion: vk.MakeVersion(1, 0, 0),
 	PApplicationName:   "Koru command line\x00",
-	PEngineName:        "https://github.com/koru3d\x00",
+	PEngineName:        "Koru3D\x00",
 }
 
-func NewVulkanDevice(appInfo *vk.ApplicationInfo, window uintptr) (Device, error) {
-	if err := vk.SetDefaultGetInstanceProcAddr(); err != nil {
-		return nil, err
+func NewVulkanDevice(appInfo *vk.ApplicationInfo, window unsafe.Pointer) (Device, error) {
+	if window == nil {
+		if err := vk.SetDefaultGetInstanceProcAddr(); err != nil {
+			return nil, err
+		}
+	} else {
+		vk.SetGetInstanceProcAddr(window)
 	}
 
 	if err := vk.Init(); err != nil {

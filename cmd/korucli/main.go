@@ -8,8 +8,7 @@ import (
 )
 
 func main() {
-	
-	appDevice, err := device.NewVulkanDevice(device.DefaultVulkanApplicationInfo, 0)
+	appDevice, err := device.NewVulkanDevice(device.DefaultVulkanApplicationInfo, nil)
 	if err != nil {
 		panic(err)
 	}

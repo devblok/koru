@@ -2,6 +2,104 @@
 
 
 [[projects]]
+  digest = "1:d29ee5ef14a7e0253facd0bcebe6a69a7a4e02a67eb24d2aacd8ccb4a7cea6fc"
+  name = "github.com/gobuffalo/envy"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "043cb4b8af871b49563291e32c66bb84378a60ac"
+  version = "v1.7.0"
+
+[[projects]]
+  digest = "1:1342bed0d7aded5e5c1c958675f0662c9dbaf2d61fa0a8c5918a144737cff3e4"
+  name = "github.com/gobuffalo/packd"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "9efbb667f2024a9370cadda45a57a0657c88a6fb"
+  version = "v0.1.0"
+
+[[projects]]
+  digest = "1:3624897aef11246e65ae23a2cdb62ca8bd954e5fdceec7134300d8eb67a26b9d"
+  name = "github.com/gobuffalo/packr"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "cda4ac25577350dac682c8715dc6659327232596"
+  version = "v2.2.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:b90ac64448d67ef218124185a8524f3c665fb7f51f096d5dd51ce950a1775d89"
+  name = "github.com/gobuffalo/syncx"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "33c29581e754bd354236e977dfe426e55331c45d"
+
+[[projects]]
+  branch = "master"
+  digest = "1:ccc5e6c1c6f6fb55a555c796f162738a5943106b8b715c6f464e0b30e6ff028d"
+  name = "github.com/gotk3/gotk3"
+  packages = [
+    "cairo",
+    "gdk",
+    "glib",
+    "gtk",
+    "pango",
+  ]
+  pruneopts = "UT"
+  revision = "8365021fde1a288ee37d4d7898b199fcb9f63f8e"
+
+[[projects]]
+  digest = "1:ecd9aa82687cf31d1585d4ac61d0ba180e42e8a6182b85bd785fcca8dfeefc1b"
+  name = "github.com/joho/godotenv"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "23d116af351c84513e1946b527c88823e476be13"
+  version = "v1.3.0"
+
+[[projects]]
+  digest = "1:31e761d97c76151dde79e9d28964a812c46efc5baee4085b86f68f0c654450de"
+  name = "github.com/konsorten/go-windows-terminal-sequences"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "f55edac94c9bbba5d6182a4be46d86a2c9b5b50e"
+  version = "v1.0.2"
+
+[[projects]]
+  digest = "1:cf31692c14422fa27c83a05292eb5cbe0fb2775972e8f1f8446a71549bd8980b"
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "ba968bfe8b2f7e042a574c888954fccecfa385b4"
+  version = "v0.8.1"
+
+[[projects]]
+  digest = "1:e09ada96a5a41deda4748b1659cc8953961799e798aea557257b56baee4ecaf3"
+  name = "github.com/rogpeppe/go-internal"
+  packages = [
+    "modfile",
+    "module",
+    "semver",
+  ]
+  pruneopts = "UT"
+  revision = "438578804ca6f31be148c27683afc419ce47c06e"
+  version = "v1.3.0"
+
+[[projects]]
+  digest = "1:04457f9f6f3ffc5fea48e71d62f2ca256637dee0a04d710288e27e05c8b41976"
+  name = "github.com/sirupsen/logrus"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "839c75faf7f98a33d445d181f3018b5c3409a45e"
+  version = "v1.4.2"
+
+[[projects]]
+  branch = "v3.3"
+  digest = "1:12a9eed16692b96eeb8780ca7d02afdae416ad2d758a8fd08308bbcd2c88cc10"
+  name = "github.com/vulkan-go/glfw"
+  packages = ["v3.3/glfw"]
+  pruneopts = "UT"
+  revision = "32f33e359ff2468fa11f49c4418b6093810de837"
+
+[[projects]]
   branch = "master"
   digest = "1:dfc16f39f657466836cb1c28bdbbe6c464afee09f920229a4dd38dccb0cdef4a"
   name = "github.com/vulkan-go/vulkan"
@@ -9,9 +107,33 @@
   pruneopts = "UT"
   revision = "df48e8cc153843e64eedaf872453d6d07a77dd8c"
 
+[[projects]]
+  branch = "master"
+  digest = "1:4f703e5098fdb9a6beb5415b625a3de1c4fcb500daa5a0771077cdc639a021ff"
+  name = "github.com/xlab/closer"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "03326addb7c265ee27cd5d5d145362165d8195a8"
+
+[[projects]]
+  branch = "master"
+  digest = "1:8f5108406bc43c7669b0d67d282e40d05c9f268615fcaf8c1f0f76965aa3f09f"
+  name = "golang.org/x/sys"
+  packages = ["unix"]
+  pruneopts = "UT"
+  revision = "4c3a928424d249a1013e789cf5e458d480bcba16"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  input-imports = ["github.com/vulkan-go/vulkan"]
+  input-imports = [
+    "github.com/gobuffalo/packr",
+    "github.com/gotk3/gotk3/glib",
+    "github.com/gotk3/gotk3/gtk",
+    "github.com/sirupsen/logrus",
+    "github.com/vulkan-go/glfw/v3.3/glfw",
+    "github.com/vulkan-go/vulkan",
+    "github.com/xlab/closer",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1
