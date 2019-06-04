@@ -19,4 +19,5 @@ Things to try (roughly in descending order of priority):
 - [ ] Ability to run scripts on all cores
 - [ ] Ability to run Vulkan rendering on all cores
 - [ ] A nice, sufficient editor on gotk3
+- [ ] An AI engine (experiment with neural networks too)
 - [ ] Design an actual game
