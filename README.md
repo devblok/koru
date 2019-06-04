@@ -19,4 +19,5 @@ Things to try (roughly in descending order of priority):
 - [ ] Ability to run scripts on all cores
 - [ ] Ability to run Vulkan rendering on all cores
 - [ ] A nice, sufficient editor on gotk3
+- [ ] Artificial intelligence that utilises GPU? [gorgonia](https://github.com/gorgonia/gorgonia) 
 - [ ] Design an actual game
