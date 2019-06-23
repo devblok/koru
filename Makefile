@@ -1,35 +1,39 @@
-BINARY_FOLDER := "bin"
-OS := "$(uname -s)"
+BINARY_FOLDER := bin
+OS := $(shell uname -s)
 FLAGS := ""
 
 all: build-all
-build-all: ${OS} ${BINARY_FOLDER} ${BINARY_FOLDER}/koru ${BINARY_FOLDER}/korucli ${BINARY_FOLDER}/korued
+build-all: ${OS} ${BINARY_FOLDER}/koru ${BINARY_FOLDER}/korucli ${BINARY_FOLDER}/korued
 	echo Building everything
 ${BINARY_FOLDER}:
-	echo Create binary foler
-	mkdir ${BINARY_FOLDER}
+	echo Create binary folder
+	mkdir -p ${BINARY_FOLDER}
 vendor:
 	echo Installing dependencies
 	dep ensure
-${BINARY_FOLDER}/koru: vendor
+${BINARY_FOLDER}/koru: vendor ${BINARY_FOLDER}
 	echo Compiling koru
-	pushd ./cmd/koru
+	cd ./cmd/koru && \
 	go build -o ../../${BINARY_FOLDER}/koru
-	popd
-${BINARY_FOLDER}/korucli: vendor
+${BINARY_FOLDER}/korucli: vendor ${BINARY_FOLDER}
 	echo Compiling korucli
-	pushd ./cmd/korucli
+	cd ./cmd/korucli && \
 	go build -o ../../${BINARY_FOLDER}/korucli
-	popd
-${BINARY_FOLDER}/korued: vendor
+${BINARY_FOLDER}/korued: vendor ${BINARY_FOLDER}
 	echo Compiling korued
-	pushd ./cmd/korued
+	cd ./cmd/korued && \
+	packr && \
 	go build -o ../../${BINARY_FOLDER}/korued
-	popd
 
 Linux:
+	echo Linux specific prepare
 Darwin:
-	FLAGS := ""
+	echo Darwin specific prepare
+	
+fix-vulkan:
+	cd vendor/github.com/vulkan-go/vulkan && \
+	make clean && \
+	c-for-go -ccdefs -ccincl -out .. vulkan.yml
 
 clean:
 	rm -rf vendor ${BINARY_FOLDER}
