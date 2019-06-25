@@ -6,7 +6,7 @@
     <property name="can_focus">False</property>
     <property name="title" translatable="yes">Koru3D Editor</property>
     <property name="window_position">mouse</property>
-    <property name="icon">../../assets/logo.png</property>
+    <property name="icon">assets/logo.png</property>
     <property name="gravity">east</property>
     <property name="has_resize_grip">True</property>
     <child type="titlebar">

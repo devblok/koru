@@ -8,19 +8,22 @@ build-all: ${OS} ${BINARY_FOLDER}/koru ${BINARY_FOLDER}/korucli ${BINARY_FOLDER}
 ${BINARY_FOLDER}:
 	@echo Create binary folder
 	mkdir -p ${BINARY_FOLDER}
+${BINARY_FOLDER}/assets: ${BINARY_FOLDER}
+	@echo Copying assets
+	cp -r assets/ ${BINARY_FOLDER}/
 vendor:
 	@echo Installing dependencies
 	dep ensure
 	make fix-vulkan
-${BINARY_FOLDER}/koru: vendor ${BINARY_FOLDER}
+${BINARY_FOLDER}/koru: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets
 	@echo Compiling koru
 	cd ./cmd/koru && \
 	go build -tags=vulkan -o ../../${BINARY_FOLDER}/koru
-${BINARY_FOLDER}/korucli: vendor ${BINARY_FOLDER}
+${BINARY_FOLDER}/korucli: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets
 	@echo Compiling korucli
 	cd ./cmd/korucli && \
 	go build -o ../../${BINARY_FOLDER}/korucli
-${BINARY_FOLDER}/korued: vendor ${BINARY_FOLDER}
+${BINARY_FOLDER}/korued: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets
 	@echo Compiling korued
 	cd ./cmd/korued && \
 	packr && \
