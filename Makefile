@@ -3,7 +3,7 @@ OS := $(shell uname -s)
 FLAGS := ""
 
 all: build-all
-build-all: ${OS} ${BINARY_FOLDER}/korucli ${BINARY_FOLDER}/korued
+build-all: ${OS} ${BINARY_FOLDER}/koru ${BINARY_FOLDER}/korucli ${BINARY_FOLDER}/korued
 	@echo Built everything
 ${BINARY_FOLDER}:
 	@echo Create binary folder
