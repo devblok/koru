@@ -7,7 +7,8 @@ import (
 	vk "github.com/vulkan-go/vulkan"
 )
 
-var DefaultVulkanApplicationInfo *vk.ApplicationInfo = &vk.ApplicationInfo{
+// DefaultVulkanApplicationInfo application info describes a Vulkan application
+var DefaultVulkanApplicationInfo = &vk.ApplicationInfo{
 	SType:              vk.StructureTypeApplicationInfo,
 	ApiVersion:         vk.MakeVersion(1, 0, 0),
 	ApplicationVersion: vk.MakeVersion(1, 0, 0),
@@ -15,7 +16,8 @@ var DefaultVulkanApplicationInfo *vk.ApplicationInfo = &vk.ApplicationInfo{
 	PEngineName:        "Koru3D\x00",
 }
 
-func NewVulkanDevice(appInfo *vk.ApplicationInfo, window unsafe.Pointer) (Device, error) {
+// NewVulkanDevice creates a Vulkan device
+func NewVulkanDevice(appInfo *vk.ApplicationInfo, window unsafe.Pointer, extensions []string) (Device, error) {
 	if window == nil {
 		if err := vk.SetDefaultGetInstanceProcAddr(); err != nil {
 			return nil, err
@@ -30,7 +32,6 @@ func NewVulkanDevice(appInfo *vk.ApplicationInfo, window unsafe.Pointer) (Device
 
 	v := &Vulkan{}
 
-	var extensions []string
 	instanceInfo := vk.InstanceCreateInfo{
 		SType:                   vk.StructureTypeInstanceCreateInfo,
 		PApplicationInfo:        appInfo,
@@ -40,9 +41,8 @@ func NewVulkanDevice(appInfo *vk.ApplicationInfo, window unsafe.Pointer) (Device
 
 	if err := vk.Error(vk.CreateInstance(&instanceInfo, nil, &v.instance)); err != nil {
 		return nil, err
-	} else {
-		vk.InitInstance(v.instance)
 	}
+	vk.InitInstance(v.instance)
 
 	if err := v.enumerateDevices(); err != nil {
 		return nil, err
@@ -51,6 +51,7 @@ func NewVulkanDevice(appInfo *vk.ApplicationInfo, window unsafe.Pointer) (Device
 	return v, nil
 }
 
+// Vulkan describes a Vulkan API kind of Device
 type Vulkan struct {
 	Device
 
@@ -73,9 +74,10 @@ func (v *Vulkan) enumerateDevices() error {
 	return nil
 }
 
+// PhysicalDevices implements interface
 func (v *Vulkan) PhysicalDevices() []PhysicalDeviceInfo {
 	pdi := make([]PhysicalDeviceInfo, len(v.availableDevices))
-	for i, _ := range pdi {
+	for i := range pdi {
 		pdi[i].Invalid = false
 	}
 
@@ -120,19 +122,25 @@ func (v *Vulkan) PhysicalDevices() []PhysicalDeviceInfo {
 		var physicalDeviceProperties vk.PhysicalDeviceProperties
 		vk.GetPhysicalDeviceProperties(v.availableDevices[i], &physicalDeviceProperties)
 		physicalDeviceProperties.Deref()
-		pdi[i].Id = (int)(physicalDeviceProperties.DeviceID)
-		pdi[i].VendorId = (int)(physicalDeviceProperties.VendorID)
+		pdi[i].ID = (int)(physicalDeviceProperties.DeviceID)
+		pdi[i].VendorID = (int)(physicalDeviceProperties.VendorID)
 		pdi[i].Name = vk.ToString(physicalDeviceProperties.DeviceName[:])
 		pdi[i].DriverVersion = (int)(physicalDeviceProperties.DriverVersion)
 	}
 	return pdi
 }
 
-func (vd *Vulkan) Destroy() {
-	if vd == nil {
+// Instance implements interface
+func (v *Vulkan) Instance() interface{} {
+	return v.instance
+}
+
+// Destroy implements interface
+func (v *Vulkan) Destroy() {
+	if v == nil {
 		return
 	}
-	vd.availableDevices = nil
-	vk.DestroyDevice(vd.device, nil)
-	vk.DestroyInstance(vd.instance, nil)
+	v.availableDevices = nil
+	vk.DestroyDevice(v.device, nil)
+	vk.DestroyInstance(v.instance, nil)
 }

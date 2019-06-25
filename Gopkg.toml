@@ -34,10 +34,6 @@
   name = "github.com/vulkan-go/vulkan"
 
 [[constraint]]
-  branch = "v3.3"
-  name = "github.com/vulkan-go/glfw"
-
-[[constraint]]
   branch = "master"
   name = "github.com/gotk3/gotk3"
 

@@ -1,12 +1,11 @@
 package main
 
 import (
-	"errors"
 	"runtime"
 	"unsafe"
 
 	"github.com/koru3d/koru/device"
-	"github.com/vulkan-go/glfw/v3.3/glfw"
+	"github.com/veandco/go-sdl2/sdl"
 	"github.com/xlab/closer"
 )
 
@@ -14,17 +13,44 @@ func init() {
 	runtime.LockOSThread()
 }
 
-func main() {
-	var procAddr unsafe.Pointer
-	if procAddr := glfw.GetVulkanGetInstanceProcAddress(); procAddr == nil {
-		panic(errors.New("glfw proc address was nil"))
-	}
-	if err := glfw.Init(); err != nil {
+func newWindow() *sdl.Window {
+	window, err := sdl.CreateWindow("Koru3D", sdl.WINDOWPOS_UNDEFINED,
+		sdl.WINDOWPOS_UNDEFINED, 800, 600, sdl.WINDOW_VULKAN)
+	if err != nil {
 		panic(err)
 	}
+	return window
+}
 
-	vkDevice := device.NewVulkanDevice(device.DefaultVulkanApplicationInfo, procAddr)
+var (
+	vkDevice   device.Device
+	sdlWindow  *sdl.Window
+	sdlSurface unsafe.Pointer
+)
 
-	defer closer.close()
+func main() {
+	if err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS); err != nil {
+		panic(err)
+	}
+	defer sdl.Quit()
 
+	if err := sdl.VulkanLoadLibrary(""); err != nil {
+		panic(err)
+	}
+	defer sdl.VulkanUnloadLibrary()
+
+	extensions := sdlWindow.VulkanGetInstanceExtensions()
+	if vkd, err := device.NewVulkanDevice(device.DefaultVulkanApplicationInfo, sdl.VulkanGetVkGetInstanceProcAddr(), extensions); err != nil {
+		panic(err)
+	} else {
+		vkDevice = vkd
+	}
+	defer closer.Close()
+
+	sdlWindow = newWindow()
+	if srf, err := sdlWindow.VulkanCreateSurface(vkDevice.Instance()); err != nil {
+		panic(err)
+	} else {
+		sdlSurface = srf
+	}
 }

@@ -10,32 +10,24 @@
   version = "v1.7.0"
 
 [[projects]]
-  digest = "1:1342bed0d7aded5e5c1c958675f0662c9dbaf2d61fa0a8c5918a144737cff3e4"
+  digest = "1:416086a29c268279219d7437fc5fe295a420be1617d880a1c387b5a1ff06a4f3"
   name = "github.com/gobuffalo/packd"
   packages = ["."]
   pruneopts = "UT"
-  revision = "9efbb667f2024a9370cadda45a57a0657c88a6fb"
-  version = "v0.1.0"
+  revision = "9d6116a72e8e57fc75d9b5d6be07ed31bcd673d0"
+  version = "v0.2.0"
 
 [[projects]]
-  digest = "1:3624897aef11246e65ae23a2cdb62ca8bd954e5fdceec7134300d8eb67a26b9d"
+  digest = "1:6b1e272fea1d06b3e3de212f6be6b11f9979c68fb71efa649ebdfdd2e542afd4"
   name = "github.com/gobuffalo/packr"
   packages = ["."]
   pruneopts = "UT"
-  revision = "cda4ac25577350dac682c8715dc6659327232596"
-  version = "v2.2.0"
+  revision = "a7085697a89c0c37a038939a172299ef8bf4bba8"
+  version = "v2.4.0"
 
 [[projects]]
   branch = "master"
-  digest = "1:b90ac64448d67ef218124185a8524f3c665fb7f51f096d5dd51ce950a1775d89"
-  name = "github.com/gobuffalo/syncx"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "33c29581e754bd354236e977dfe426e55331c45d"
-
-[[projects]]
-  branch = "master"
-  digest = "1:ccc5e6c1c6f6fb55a555c796f162738a5943106b8b715c6f464e0b30e6ff028d"
+  digest = "1:b5ac9ed79a83cdc7f69442236764aa4d42acdb00db3dfe27145072b9c7136b9d"
   name = "github.com/gotk3/gotk3"
   packages = [
     "cairo",
@@ -45,7 +37,7 @@
     "pango",
   ]
   pruneopts = "UT"
-  revision = "8365021fde1a288ee37d4d7898b199fcb9f63f8e"
+  revision = "6dcdf9e5c51e982e099eea798c95faea42def17d"
 
 [[projects]]
   digest = "1:ecd9aa82687cf31d1585d4ac61d0ba180e42e8a6182b85bd785fcca8dfeefc1b"
@@ -92,12 +84,11 @@
   version = "v1.4.2"
 
 [[projects]]
-  branch = "v3.3"
-  digest = "1:12a9eed16692b96eeb8780ca7d02afdae416ad2d758a8fd08308bbcd2c88cc10"
-  name = "github.com/vulkan-go/glfw"
-  packages = ["v3.3/glfw"]
+  digest = "1:77655447447593975853000bc9bc95ea2c200213c3bdd04637a18c10c536d875"
+  name = "github.com/veandco/go-sdl2"
+  packages = ["sdl"]
   pruneopts = "UT"
-  revision = "32f33e359ff2468fa11f49c4418b6093810de837"
+  revision = "7a9b8d607870d8d03a1b739ddff015d4ab10f2eb"
 
 [[projects]]
   branch = "master"
@@ -117,11 +108,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:8f5108406bc43c7669b0d67d282e40d05c9f268615fcaf8c1f0f76965aa3f09f"
+  digest = "1:a2b03582f5805ebb5d96482a0ea550d48aba5347cc5089d89d2307ac55b98660"
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "4c3a928424d249a1013e789cf5e458d480bcba16"
+  revision = "d432491b91382bba9c2a91776aa47c9430183a6f"
 
 [solve-meta]
   analyzer-name = "dep"
@@ -131,7 +122,7 @@
     "github.com/gotk3/gotk3/glib",
     "github.com/gotk3/gotk3/gtk",
     "github.com/sirupsen/logrus",
-    "github.com/vulkan-go/glfw/v3.3/glfw",
+    "github.com/veandco/go-sdl2/sdl",
     "github.com/vulkan-go/vulkan",
     "github.com/xlab/closer",
   ]

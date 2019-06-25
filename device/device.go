@@ -2,9 +2,10 @@ package device
 
 import vk "github.com/vulkan-go/vulkan"
 
+// PhysicalDeviceInfo describes available physical properties of a rendering device
 type PhysicalDeviceInfo struct {
-	Id            int
-	VendorId      int
+	ID            int
+	VendorID      int
 	DriverVersion int
 	Name          string
 	Invalid       bool
@@ -13,7 +14,9 @@ type PhysicalDeviceInfo struct {
 	Memory        vk.DeviceSize
 }
 
+// Device describes a non-concrete rendering device
 type Device interface {
 	PhysicalDevices() []PhysicalDeviceInfo
+	Instance() interface{}
 	Destroy()
 }
