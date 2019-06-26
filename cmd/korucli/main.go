@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/koru3d/koru/device"
+	"github.com/koru3d/koru/core"
 )
 
 func main() {
-	appDevice, err := device.NewVulkanDevice(device.DefaultVulkanApplicationInfo, nil, []string{})
+	appDevice, err := core.NewVulkanDevice(core.DefaultVulkanApplicationInfo, nil, []string{})
 	if err != nil {
 		panic(err)
 	}

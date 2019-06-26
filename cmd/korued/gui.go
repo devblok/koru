@@ -60,7 +60,7 @@ func buildInterface() (*gtk.Application, error) {
 		if win, ok = obj.(*gtk.Window); !ok {
 			log.Error(errors.New("failed to cast Object from builder to Window"))
 		} else {
-			win.SetDefaultSize(600, 480)
+			win.SetDefaultSize(800, 600)
 
 			win.ShowAll()
 			app.AddWindow(win)

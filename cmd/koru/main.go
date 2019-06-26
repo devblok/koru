@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"unsafe"
 
-	"github.com/koru3d/koru/device"
+	"github.com/koru3d/koru/core"
 	"github.com/veandco/go-sdl2/sdl"
 	"github.com/xlab/closer"
 )
@@ -23,7 +23,7 @@ func newWindow() *sdl.Window {
 }
 
 var (
-	vkDevice   device.Device
+	vkDevice   core.Device
 	sdlWindow  *sdl.Window
 	sdlSurface unsafe.Pointer
 )
@@ -40,8 +40,8 @@ func main() {
 	defer sdl.VulkanUnloadLibrary()
 
 	extensions := sdlWindow.VulkanGetInstanceExtensions()
-	if vkd, err := device.NewVulkanDevice(
-		device.DefaultVulkanApplicationInfo,
+	if vkd, err := core.NewVulkanDevice(
+		core.DefaultVulkanApplicationInfo,
 		sdl.VulkanGetVkGetInstanceProcAddr(),
 		extensions); err != nil {
 		panic(err)

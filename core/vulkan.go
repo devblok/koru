@@ -1,4 +1,4 @@
-package device
+package core
 
 import (
 	"fmt"
@@ -14,6 +14,26 @@ var DefaultVulkanApplicationInfo = &vk.ApplicationInfo{
 	ApplicationVersion: vk.MakeVersion(1, 0, 0),
 	PApplicationName:   "korucli\x00",
 	PEngineName:        "Koru3D\x00",
+}
+
+// PhysicalDeviceInfo describes available physical properties of a rendering device
+type PhysicalDeviceInfo struct {
+	ID            int
+	VendorID      int
+	DriverVersion int
+	Name          string
+	Invalid       bool
+	Extensions    []string
+	Layers        []string
+	Memory        vk.DeviceSize
+	Features      vk.PhysicalDeviceFeatures
+}
+
+// Device describes a non-concrete rendering device
+type Device interface {
+	PhysicalDevices() []PhysicalDeviceInfo
+	Instance() interface{}
+	Destroy()
 }
 
 // NewVulkanDevice creates a Vulkan device
