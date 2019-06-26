@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	appDevice, err := core.NewVulkanDevice(core.DefaultVulkanApplicationInfo, nil, []string{})
+	appDevice, err := core.NewVulkanInstance(core.DefaultVulkanApplicationInfo, nil, []string{})
 	if err != nil {
 		panic(err)
 	}

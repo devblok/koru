@@ -29,15 +29,15 @@ type PhysicalDeviceInfo struct {
 	Features      vk.PhysicalDeviceFeatures
 }
 
-// Device describes a non-concrete rendering device
-type Device interface {
+// Instance describes a Vulkan instance and supporting methods
+type Instance interface {
 	PhysicalDevices() []PhysicalDeviceInfo
-	Instance() interface{}
+	Inner() interface{}
 	Destroy()
 }
 
-// NewVulkanDevice creates a Vulkan device
-func NewVulkanDevice(appInfo *vk.ApplicationInfo, window unsafe.Pointer, extensions []string) (Device, error) {
+// NewVulkanInstance creates a Vulkan instance
+func NewVulkanInstance(appInfo *vk.ApplicationInfo, window unsafe.Pointer, extensions []string) (Instance, error) {
 	if window == nil {
 		if err := vk.SetDefaultGetInstanceProcAddr(); err != nil {
 			return nil, err
@@ -71,9 +71,9 @@ func NewVulkanDevice(appInfo *vk.ApplicationInfo, window unsafe.Pointer, extensi
 	return v, nil
 }
 
-// Vulkan describes a Vulkan API kind of Device
+// Vulkan describes a Vulkan API Instance
 type Vulkan struct {
-	Device
+	Instance
 
 	availableDevices []vk.PhysicalDevice
 
@@ -153,8 +153,8 @@ func (v *Vulkan) PhysicalDevices() []PhysicalDeviceInfo {
 	return pdi
 }
 
-// Instance implements interface
-func (v *Vulkan) Instance() interface{} {
+// Inner implements interface
+func (v *Vulkan) Inner() interface{} {
 	return v.instance
 }
 

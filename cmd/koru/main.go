@@ -24,7 +24,7 @@ func newWindow() *sdl.Window {
 }
 
 var (
-	vkDevice   core.Device
+	vkInstance core.Instance
 	sdlWindow  *sdl.Window
 	sdlSurface unsafe.Pointer
 )
@@ -41,18 +41,19 @@ func main() {
 	defer sdl.VulkanUnloadLibrary()
 
 	extensions := sdlWindow.VulkanGetInstanceExtensions()
-	if vkd, err := core.NewVulkanDevice(
+	extensions = append(extensions, "VK_KHR_swapchain")
+	if vi, err := core.NewVulkanInstance(
 		core.DefaultVulkanApplicationInfo,
 		sdl.VulkanGetVkGetInstanceProcAddr(),
 		extensions); err != nil {
 		panic(err)
 	} else {
-		vkDevice = vkd
+		vkInstance = vi
 	}
 	defer closer.Close()
 
 	sdlWindow = newWindow()
-	if srf, err := sdlWindow.VulkanCreateSurface(vkDevice.Instance()); err != nil {
+	if srf, err := sdlWindow.VulkanCreateSurface(vkInstance.Inner()); err != nil {
 		panic(err)
 	} else {
 		sdlSurface = srf
