@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"runtime"
 	"unsafe"
 
@@ -57,4 +58,31 @@ func main() {
 		sdlSurface = srf
 	}
 
+	time := core.NewTime(core.TimeConfiguration{
+		FramesPerSecond: 60,
+	})
+	exitC := make(chan struct{}, 2)
+
+EventLoop:
+	for {
+		select {
+		case <-exitC:
+			log.Println("Even loop exited")
+			break EventLoop
+		case <-time.FpsTicker().C:
+			var event sdl.Event
+			for event = sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
+				switch et := event.(type) {
+				case *sdl.KeyboardEvent:
+					if et.Keysym.Sym == sdl.K_ESCAPE {
+						exitC <- struct{}{}
+						continue EventLoop
+					}
+				case *sdl.QuitEvent:
+					exitC <- struct{}{}
+					continue EventLoop
+				}
+			}
+		}
+	}
 }
