@@ -40,7 +40,10 @@ func main() {
 	defer sdl.VulkanUnloadLibrary()
 
 	extensions := sdlWindow.VulkanGetInstanceExtensions()
-	if vkd, err := device.NewVulkanDevice(device.DefaultVulkanApplicationInfo, sdl.VulkanGetVkGetInstanceProcAddr(), extensions); err != nil {
+	if vkd, err := device.NewVulkanDevice(
+		device.DefaultVulkanApplicationInfo,
+		sdl.VulkanGetVkGetInstanceProcAddr(),
+		extensions); err != nil {
 		panic(err)
 	} else {
 		vkDevice = vkd
@@ -53,4 +56,5 @@ func main() {
 	} else {
 		sdlSurface = srf
 	}
+
 }

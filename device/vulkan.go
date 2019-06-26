@@ -12,7 +12,7 @@ var DefaultVulkanApplicationInfo = &vk.ApplicationInfo{
 	SType:              vk.StructureTypeApplicationInfo,
 	ApiVersion:         vk.MakeVersion(1, 0, 0),
 	ApplicationVersion: vk.MakeVersion(1, 0, 0),
-	PApplicationName:   "Koru command line\x00",
+	PApplicationName:   "korucli\x00",
 	PEngineName:        "Koru3D\x00",
 }
 
@@ -82,6 +82,9 @@ func (v *Vulkan) PhysicalDevices() []PhysicalDeviceInfo {
 	}
 
 	for i := 0; i < len(v.availableDevices); i++ {
+		// Get device features
+		vk.GetPhysicalDeviceFeatures(v.availableDevices[i], &pdi[i].Features)
+
 		// Get extension info
 		var numDeviceExtensions uint32
 		if err := vk.Error(vk.EnumerateDeviceExtensionProperties(v.availableDevices[i], "", &numDeviceExtensions, nil)); err != nil {

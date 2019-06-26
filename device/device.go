@@ -12,6 +12,7 @@ type PhysicalDeviceInfo struct {
 	Extensions    []string
 	Layers        []string
 	Memory        vk.DeviceSize
+	Features      vk.PhysicalDeviceFeatures
 }
 
 // Device describes a non-concrete rendering device
