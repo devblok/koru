@@ -212,8 +212,9 @@ type VulkanRenderer struct {
 
 // Initialise implements interface
 func (v *VulkanRenderer) Initialise() error {
+	// TODO: Make extension name escaping bearable
 	requiredExtensions := []string{
-		vk.KhrSwapchainExtensionName,
+		vk.KhrSwapchainExtensionName + "\x00",
 	}
 
 	/* Logical Device setup */

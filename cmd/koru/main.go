@@ -30,8 +30,9 @@ var configuration = core.Configuration{
 		ScreenWidth:   800,
 		ScreenHeight:  600,
 		SwapchainSize: 3,
+		// TODO: Make extension name escaping bearable
 		DeviceExtensions: []string{
-			"VK_KHR_swapchain",
+			"VK_KHR_swapchain\x00",
 		},
 	},
 }
