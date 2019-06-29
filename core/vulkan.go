@@ -202,10 +202,13 @@ type VulkanRenderer struct {
 
 	configuration RendererConfiguration
 
-	surface        vk.Surface
-	swapchain      vk.Swapchain
-	logicalDevice  vk.Device
-	physicalDevice vk.PhysicalDevice
+	surface         vk.Surface
+	swapchain       vk.Swapchain
+	swapchainImages []vk.Image
+	logicalDevice   vk.Device
+	physicalDevice  vk.PhysicalDevice
+	imageFormat     vk.Format
+	imageViews      []vk.ImageView
 
 	physicalDeviceInfo PhysicalDeviceInfo
 }
@@ -313,6 +316,55 @@ func (v *VulkanRenderer) Initialise() error {
 		return errors.New("vk.CreateSwapchain(): " + err.Error())
 	}
 
+	v.swapchain = swapchain
+	v.imageFormat = surfaceFormats[0].Format
+
+	var numImages uint32
+	if err := vk.Error(vk.GetSwapchainImages(v.logicalDevice, v.swapchain, &numImages, nil)); err != nil {
+		return errors.New("vk.GetSwapchainImages(num): " + err.Error())
+	}
+
+	v.swapchainImages = make([]vk.Image, numImages)
+	if err := vk.Error(vk.GetSwapchainImages(v.logicalDevice, v.swapchain, &numImages, v.swapchainImages)); err != nil {
+		return errors.New("vk.GetSwapchainImages(images): " + err.Error())
+	}
+
+	if err := v.createImageViews(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (v *VulkanRenderer) createImageViews() error {
+	for idx := 0; idx < len(v.swapchainImages); idx++ {
+		var imageView vk.ImageView
+		ivci := vk.ImageViewCreateInfo{
+			SType:    vk.StructureTypeImageViewCreateInfo,
+			Image:    v.swapchainImages[idx],
+			ViewType: vk.ImageViewType2d,
+			Format:   v.imageFormat,
+			Components: vk.ComponentMapping{
+				R: vk.ComponentSwizzleIdentity,
+				G: vk.ComponentSwizzleIdentity,
+				B: vk.ComponentSwizzleIdentity,
+				A: vk.ComponentSwizzleIdentity,
+			},
+			SubresourceRange: vk.ImageSubresourceRange{
+				AspectMask:     1,
+				BaseMipLevel:   0,
+				LevelCount:     1,
+				BaseArrayLayer: 0,
+				LayerCount:     1,
+			},
+		}
+
+		if err := vk.Error(vk.CreateImageView(v.logicalDevice, &ivci, nil, &imageView)); err != nil {
+			return errors.New("with index " + string(idx) + "vk.CreateImageView(): " + err.Error())
+		}
+
+		v.imageViews = append(v.imageViews, imageView)
+	}
 	return nil
 }
 
