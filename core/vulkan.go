@@ -13,7 +13,7 @@ var DefaultVulkanApplicationInfo = &vk.ApplicationInfo{
 	SType:              vk.StructureTypeApplicationInfo,
 	ApiVersion:         vk.MakeVersion(1, 0, 0),
 	ApplicationVersion: vk.MakeVersion(1, 0, 0),
-	PApplicationName:   "korucli\x00",
+	PApplicationName:   "Koru3D\x00",
 	PEngineName:        "Koru3D\x00",
 }
 

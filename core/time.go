@@ -7,9 +7,16 @@ import (
 
 // NewTime creates a new time service
 func NewTime(cfg TimeConfiguration) Time {
+	var interval time.Duration
+	if cfg.FramesPerSecond == 0 {
+		interval = time.Nanosecond
+	} else {
+		interval = time.Second / (time.Duration)(cfg.FramesPerSecond)
+	}
+
 	return Time{
 		fps:       cfg.FramesPerSecond,
-		fpsTicker: time.NewTicker(time.Second / (time.Duration)(cfg.FramesPerSecond)),
+		fpsTicker: time.NewTicker(interval),
 	}
 }
 
