@@ -188,8 +188,33 @@ func (v *VulkanInstance) Destroy() {
 
 // NewVulkanRenderer creates a not yet initialised Vulkan API renderer
 func NewVulkanRenderer(instance Instance, cfg RendererConfiguration) (Renderer, error) {
-	vkDevice := instance.AvailableDevices()[0]
-	vkSurface := instance.Surface()
+	return &VulkanRenderer{
+		configuration:      cfg,
+		surface:            instance.Surface(),
+		physicalDevice:     instance.AvailableDevices()[0],
+		physicalDeviceInfo: instance.PhysicalDevicesInfo()[0],
+	}, nil
+}
+
+// VulkanRenderer is a Vulkan API renderer
+type VulkanRenderer struct {
+	Renderer
+
+	configuration RendererConfiguration
+
+	surface        vk.Surface
+	swapchain      vk.Swapchain
+	logicalDevice  vk.Device
+	physicalDevice vk.PhysicalDevice
+
+	physicalDeviceInfo PhysicalDeviceInfo
+}
+
+// Initialise implements interface
+func (v *VulkanRenderer) Initialise() error {
+	requiredExtensions := []string{
+		vk.KhrSwapchainExtensionName,
+	}
 
 	/* Logical Device setup */
 	queueInfos := []vk.DeviceQueueCreateInfo{{
@@ -199,23 +224,23 @@ func NewVulkanRenderer(instance Instance, cfg RendererConfiguration) (Renderer, 
 		PQueuePriorities: []float32{1, 0},
 	}}
 
-	// TODO: Plug real values
-	var vkLogicalDevice vk.Device
+	var vkDevice vk.Device
 	dci := vk.DeviceCreateInfo{
 		SType:                   vk.StructureTypeDeviceCreateInfo,
 		QueueCreateInfoCount:    uint32(len(queueInfos)),
 		PQueueCreateInfos:       queueInfos,
-		EnabledExtensionCount:   uint32(len(cfg.DeviceExtensions)),
-		PpEnabledExtensionNames: cfg.DeviceExtensions,
+		EnabledExtensionCount:   uint32(len(requiredExtensions)),
+		PpEnabledExtensionNames: requiredExtensions,
 	}
-	if err := vk.Error(vk.CreateDevice(vkDevice, &dci, nil, &vkLogicalDevice)); err != nil {
-		return nil, errors.New("vk.CreateDevice(): " + err.Error())
+	if err := vk.Error(vk.CreateDevice(v.physicalDevice, &dci, nil, &vkDevice)); err != nil {
+		return errors.New("vk.CreateDevice(): " + err.Error())
 	}
+	v.logicalDevice = vkDevice
 
 	/* Swapchain setup */
 	var surfaceCapabilities vk.SurfaceCapabilities
-	if err := vk.Error(vk.GetPhysicalDeviceSurfaceCapabilities(vkDevice, vkSurface, &surfaceCapabilities)); err != nil {
-		return nil, errors.New("vk.GetPhysicalDeviceSurfaceCapabilities(): " + err.Error())
+	if err := vk.Error(vk.GetPhysicalDeviceSurfaceCapabilities(v.physicalDevice, v.surface, &surfaceCapabilities)); err != nil {
+		return errors.New("vk.GetPhysicalDeviceSurfaceCapabilities(): " + err.Error())
 	}
 
 	// ImageFormat
@@ -224,13 +249,13 @@ func NewVulkanRenderer(instance Instance, cfg RendererConfiguration) (Renderer, 
 		surfaceFormats     []vk.SurfaceFormat
 	)
 
-	if err := vk.Error(vk.GetPhysicalDeviceSurfaceFormats(vkDevice, vkSurface, &surfaceFormatCount, nil)); err != nil {
-		return nil, errors.New("vk.GetPhysicalDeviceSurfaceFormats(): " + err.Error())
+	if err := vk.Error(vk.GetPhysicalDeviceSurfaceFormats(v.physicalDevice, v.surface, &surfaceFormatCount, nil)); err != nil {
+		return errors.New("vk.GetPhysicalDeviceSurfaceFormats(): " + err.Error())
 	}
 
 	surfaceFormats = make([]vk.SurfaceFormat, surfaceFormatCount)
-	if err := vk.Error(vk.GetPhysicalDeviceSurfaceFormats(vkDevice, vkSurface, &surfaceFormatCount, surfaceFormats)); err != nil {
-		return nil, errors.New("vk.GetPhysicalDeviceSurfaceFormats(): " + err.Error())
+	if err := vk.Error(vk.GetPhysicalDeviceSurfaceFormats(v.physicalDevice, v.surface, &surfaceFormatCount, surfaceFormats)); err != nil {
+		return errors.New("vk.GetPhysicalDeviceSurfaceFormats(): " + err.Error())
 	}
 
 	surfaceFormats[0].Deref()
@@ -265,13 +290,13 @@ func NewVulkanRenderer(instance Instance, cfg RendererConfiguration) (Renderer, 
 	var swapchain vk.Swapchain
 	scci := vk.SwapchainCreateInfo{
 		SType:           vk.StructureTypeSwapchainCreateInfo,
-		Surface:         vkSurface,
-		MinImageCount:   cfg.SwapchainSize,
+		Surface:         v.surface,
+		MinImageCount:   v.configuration.SwapchainSize,
 		ImageFormat:     surfaceFormats[0].Format,
 		ImageColorSpace: surfaceFormats[0].ColorSpace,
 		ImageExtent: vk.Extent2D{
-			Width:  cfg.ScreenWidth,
-			Height: cfg.ScreenHeight,
+			Width:  v.configuration.ScreenWidth,
+			Height: v.configuration.ScreenHeight,
 		},
 		ImageUsage:       vk.ImageUsageFlags(vk.ImageUsageColorAttachmentBit),
 		PreTransform:     preTransform,
@@ -283,22 +308,16 @@ func NewVulkanRenderer(instance Instance, cfg RendererConfiguration) (Renderer, 
 		OldSwapchain:     nil,
 	}
 
-	if err := vk.Error(vk.CreateSwapchain(vkLogicalDevice, &scci, nil, &swapchain)); err != nil {
-		return nil, errors.New("vk.CreateSwapchain(): " + err.Error())
+	if err := vk.Error(vk.CreateSwapchain(v.logicalDevice, &scci, nil, &swapchain)); err != nil {
+		return errors.New("vk.CreateSwapchain(): " + err.Error())
 	}
 
-	return &VulkanRenderer{
-		swapchain: swapchain,
-	}, nil
+	return nil
 }
 
-// VulkanRenderer is a Vulkan API renderer
-type VulkanRenderer struct {
-	Renderer
-
-	swapchain      vk.Swapchain
-	logicalDevice  vk.Device
-	physicalDevice vk.PhysicalDevice
+// DeviceIsSuitable implements interface
+func (v *VulkanRenderer) DeviceIsSuitable(device vk.PhysicalDevice) (bool, string) {
+	return true, ""
 }
 
 // Destroy implements interface

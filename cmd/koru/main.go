@@ -60,11 +60,10 @@ func main() {
 	}
 	defer sdl.VulkanUnloadLibrary()
 
-	extensions := sdlWindow.VulkanGetInstanceExtensions()
 	if vi, err := core.NewVulkanInstance(
 		core.DefaultVulkanApplicationInfo,
 		sdl.VulkanGetVkGetInstanceProcAddr(),
-		extensions); err != nil {
+		sdlWindow.VulkanGetInstanceExtensions()); err != nil {
 		panic(err)
 	} else {
 		vkInstance = vi
@@ -83,6 +82,15 @@ func main() {
 	vkRenderer, rendererErr = core.NewVulkanRenderer(vkInstance, configuration.Renderer)
 	if rendererErr != nil {
 		panic(rendererErr)
+	}
+
+	deviceUsed := vkInstance.AvailableDevices()[0]
+	if suitable, reason := vkRenderer.DeviceIsSuitable(deviceUsed); !suitable {
+		panic(reason)
+	}
+
+	if err := vkRenderer.Initialise(); err != nil {
+		panic(err)
 	}
 
 	time := core.NewTime(configuration.Time)

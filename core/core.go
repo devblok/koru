@@ -42,8 +42,8 @@ type Renderer interface {
 	Initialise() error
 
 	// DeviceIsSuitable checks if the device given is suitable
-	// for the rendering pipeline
-	DeviceIsSuitable(vk.PhysicalDevice) (bool, error)
+	// for the rendering pipeline. If not suitable string contains the reason
+	DeviceIsSuitable(vk.PhysicalDevice) (bool, string)
 
 	// Destroy destroys internal members
 	Destroy()
