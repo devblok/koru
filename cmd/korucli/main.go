@@ -8,16 +8,16 @@ import (
 )
 
 func main() {
-	appDevice, err := core.NewVulkanInstance(core.DefaultVulkanApplicationInfo, nil, []string{})
+	coreInstance, err := core.NewVulkanInstance(core.DefaultVulkanApplicationInfo, nil, []string{})
 	if err != nil {
 		panic(err)
 	}
 
-	if bytes, err := json.Marshal(appDevice.PhysicalDevices()); err == nil {
+	if bytes, err := json.Marshal(coreInstance.PhysicalDevicesInfo()); err == nil {
 		fmt.Printf("%s", bytes)
 	} else {
 		panic(err)
 	}
 
-	appDevice.Destroy()
+	coreInstance.Destroy()
 }

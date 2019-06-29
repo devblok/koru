@@ -14,20 +14,40 @@ func init() {
 	runtime.LockOSThread()
 }
 
+// Essential globals
+var (
+	vkInstance core.Instance
+	vkRenderer core.Renderer
+	sdlWindow  *sdl.Window
+	sdlSurface unsafe.Pointer
+)
+
+var configuration = core.Configuration{
+	Time: core.TimeConfiguration{
+		FramesPerSecond: 60,
+	},
+	Renderer: core.RendererConfiguration{
+		ScreenWidth:   800,
+		ScreenHeight:  600,
+		SwapchainSize: 3,
+		DeviceExtensions: []string{
+			"VK_KHR_swapchain",
+		},
+	},
+}
+
 func newWindow() *sdl.Window {
-	window, err := sdl.CreateWindow("Koru3D", sdl.WINDOWPOS_UNDEFINED,
-		sdl.WINDOWPOS_UNDEFINED, 800, 600, sdl.WINDOW_VULKAN)
+	window, err := sdl.CreateWindow("Koru3D",
+		sdl.WINDOWPOS_UNDEFINED,
+		sdl.WINDOWPOS_UNDEFINED,
+		int32(configuration.Renderer.ScreenWidth),
+		int32(configuration.Renderer.ScreenHeight),
+		sdl.WINDOW_VULKAN)
 	if err != nil {
 		panic(err)
 	}
 	return window
 }
-
-var (
-	vkInstance core.Instance
-	sdlWindow  *sdl.Window
-	sdlSurface unsafe.Pointer
-)
 
 func main() {
 	if err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS); err != nil {
@@ -41,7 +61,6 @@ func main() {
 	defer sdl.VulkanUnloadLibrary()
 
 	extensions := sdlWindow.VulkanGetInstanceExtensions()
-	extensions = append(extensions, "VK_KHR_swapchain")
 	if vi, err := core.NewVulkanInstance(
 		core.DefaultVulkanApplicationInfo,
 		sdl.VulkanGetVkGetInstanceProcAddr(),
@@ -57,11 +76,16 @@ func main() {
 		panic(err)
 	} else {
 		sdlSurface = srf
+		vkInstance.SetSurface(sdlSurface)
 	}
 
-	time := core.NewTime(core.TimeConfiguration{
-		FramesPerSecond: 60,
-	})
+	var rendererErr error
+	vkRenderer, rendererErr = core.NewVulkanRenderer(vkInstance, configuration.Renderer)
+	if rendererErr != nil {
+		panic(rendererErr)
+	}
+
+	time := core.NewTime(configuration.Time)
 	exitC := make(chan struct{}, 2)
 
 EventLoop:
@@ -86,4 +110,7 @@ EventLoop:
 			}
 		}
 	}
+
+	vkRenderer.Destroy()
+	vkInstance.Destroy()
 }

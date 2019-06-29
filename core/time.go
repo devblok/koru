@@ -5,13 +5,6 @@ import (
 	"time"
 )
 
-// TimeConfiguration is used to configure time services
-type TimeConfiguration struct {
-	// FramesPerSecond caps frames per second that is put out
-	// To unlimit, set to 0
-	FramesPerSecond int
-}
-
 // NewTime creates a new time service
 func NewTime(cfg TimeConfiguration) Time {
 	return Time{

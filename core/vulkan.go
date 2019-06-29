@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"unsafe"
 
@@ -29,28 +30,21 @@ type PhysicalDeviceInfo struct {
 	Features      vk.PhysicalDeviceFeatures
 }
 
-// Instance describes a Vulkan instance and supporting methods
-type Instance interface {
-	PhysicalDevices() []PhysicalDeviceInfo
-	Inner() interface{}
-	Destroy()
-}
-
 // NewVulkanInstance creates a Vulkan instance
 func NewVulkanInstance(appInfo *vk.ApplicationInfo, window unsafe.Pointer, extensions []string) (Instance, error) {
+	v := &VulkanInstance{}
+
 	if window == nil {
 		if err := vk.SetDefaultGetInstanceProcAddr(); err != nil {
-			return nil, err
+			return nil, errors.New("vk.InstanceProcAddr(): " + err.Error())
 		}
 	} else {
 		vk.SetGetInstanceProcAddr(window)
 	}
 
 	if err := vk.Init(); err != nil {
-		return nil, err
+		return nil, errors.New("vk.Init(): " + err.Error())
 	}
-
-	v := &Vulkan{}
 
 	instanceInfo := vk.InstanceCreateInfo{
 		SType:                   vk.StructureTypeInstanceCreateInfo,
@@ -60,29 +54,31 @@ func NewVulkanInstance(appInfo *vk.ApplicationInfo, window unsafe.Pointer, exten
 	}
 
 	if err := vk.Error(vk.CreateInstance(&instanceInfo, nil, &v.instance)); err != nil {
-		return nil, err
+		return nil, errors.New("vk.CreateInstance(): " + err.Error())
 	}
 	vk.InitInstance(v.instance)
 
 	if err := v.enumerateDevices(); err != nil {
-		return nil, err
+		return nil, errors.New("core.enumerateDevices(): " + err.Error())
 	}
+
+	v.extensions = extensions
 
 	return v, nil
 }
 
-// Vulkan describes a Vulkan API Instance
-type Vulkan struct {
+// VulkanInstance describes a Vulkan API Instance
+type VulkanInstance struct {
 	Instance
 
 	availableDevices []vk.PhysicalDevice
+	surface          vk.Surface
+	instance         vk.Instance
 
-	instance vk.Instance
-	surface  vk.Surface
-	device   vk.Device
+	extensions []string
 }
 
-func (v *Vulkan) enumerateDevices() error {
+func (v *VulkanInstance) enumerateDevices() error {
 	var deviceCount uint32
 	if err := vk.Error(vk.EnumeratePhysicalDevices(v.instance, &deviceCount, nil)); err != nil {
 		return fmt.Errorf("vulkan physical device enumeration failed: %s", err)
@@ -94,8 +90,8 @@ func (v *Vulkan) enumerateDevices() error {
 	return nil
 }
 
-// PhysicalDevices implements interface
-func (v *Vulkan) PhysicalDevices() []PhysicalDeviceInfo {
+// PhysicalDevicesInfo implements interface
+func (v *VulkanInstance) PhysicalDevicesInfo() []PhysicalDeviceInfo {
 	pdi := make([]PhysicalDeviceInfo, len(v.availableDevices))
 	for i := range pdi {
 		pdi[i].Invalid = false
@@ -153,17 +149,160 @@ func (v *Vulkan) PhysicalDevices() []PhysicalDeviceInfo {
 	return pdi
 }
 
+// SetSurface implements interface
+func (v *VulkanInstance) SetSurface(pSurface unsafe.Pointer) {
+	v.surface = vk.SurfaceFromPointer(uintptr(pSurface))
+}
+
+// Surface implements interface
+func (v *VulkanInstance) Surface() vk.Surface {
+	if v.surface == nil {
+		return vk.NullSurface
+	}
+	return v.surface
+}
+
+// Extensions implements interface
+func (v *VulkanInstance) Extensions() []string {
+	return v.extensions
+}
+
+// AvailableDevices implements interface
+func (v *VulkanInstance) AvailableDevices() []vk.PhysicalDevice {
+	return v.availableDevices
+}
+
 // Inner implements interface
-func (v *Vulkan) Inner() interface{} {
+func (v *VulkanInstance) Inner() interface{} {
 	return v.instance
 }
 
 // Destroy implements interface
-func (v *Vulkan) Destroy() {
+func (v *VulkanInstance) Destroy() {
 	if v == nil {
 		return
 	}
 	v.availableDevices = nil
-	vk.DestroyDevice(v.device, nil)
 	vk.DestroyInstance(v.instance, nil)
+}
+
+// NewVulkanRenderer creates a not yet initialised Vulkan API renderer
+func NewVulkanRenderer(instance Instance, cfg RendererConfiguration) (Renderer, error) {
+	vkDevice := instance.AvailableDevices()[0]
+	vkSurface := instance.Surface()
+
+	/* Logical Device setup */
+	queueInfos := []vk.DeviceQueueCreateInfo{{
+		SType:            vk.StructureTypeDeviceQueueCreateInfo,
+		QueueFamilyIndex: 1,
+		QueueCount:       1,
+		PQueuePriorities: []float32{1, 0},
+	}}
+
+	// TODO: Plug real values
+	var vkLogicalDevice vk.Device
+	dci := vk.DeviceCreateInfo{
+		SType:                   vk.StructureTypeDeviceCreateInfo,
+		QueueCreateInfoCount:    uint32(len(queueInfos)),
+		PQueueCreateInfos:       queueInfos,
+		EnabledExtensionCount:   uint32(len(cfg.DeviceExtensions)),
+		PpEnabledExtensionNames: cfg.DeviceExtensions,
+	}
+	if err := vk.Error(vk.CreateDevice(vkDevice, &dci, nil, &vkLogicalDevice)); err != nil {
+		return nil, errors.New("vk.CreateDevice(): " + err.Error())
+	}
+
+	/* Swapchain setup */
+	var surfaceCapabilities vk.SurfaceCapabilities
+	if err := vk.Error(vk.GetPhysicalDeviceSurfaceCapabilities(vkDevice, vkSurface, &surfaceCapabilities)); err != nil {
+		return nil, errors.New("vk.GetPhysicalDeviceSurfaceCapabilities(): " + err.Error())
+	}
+
+	// ImageFormat
+	var (
+		surfaceFormatCount uint32
+		surfaceFormats     []vk.SurfaceFormat
+	)
+
+	if err := vk.Error(vk.GetPhysicalDeviceSurfaceFormats(vkDevice, vkSurface, &surfaceFormatCount, nil)); err != nil {
+		return nil, errors.New("vk.GetPhysicalDeviceSurfaceFormats(): " + err.Error())
+	}
+
+	surfaceFormats = make([]vk.SurfaceFormat, surfaceFormatCount)
+	if err := vk.Error(vk.GetPhysicalDeviceSurfaceFormats(vkDevice, vkSurface, &surfaceFormatCount, surfaceFormats)); err != nil {
+		return nil, errors.New("vk.GetPhysicalDeviceSurfaceFormats(): " + err.Error())
+	}
+
+	surfaceFormats[0].Deref()
+
+	// PreTransform
+	var preTransform vk.SurfaceTransformFlagBits
+	requiredTransform := vk.SurfaceTransformIdentityBit
+	if vk.SurfaceTransformFlagBits(surfaceCapabilities.SupportedTransforms) != 0 {
+		preTransform = requiredTransform
+	} else {
+		preTransform = surfaceCapabilities.CurrentTransform
+	}
+
+	compositeAlpha := vk.CompositeAlphaOpaqueBit
+	compositeAlphaFlags := []vk.CompositeAlphaFlagBits{
+		vk.CompositeAlphaOpaqueBit,
+		vk.CompositeAlphaPreMultipliedBit,
+		vk.CompositeAlphaPostMultipliedBit,
+		vk.CompositeAlphaInheritBit,
+	}
+
+	// CompositeAlpha
+	for i := 0; i < len(compositeAlphaFlags); i++ {
+		alphaFlags := vk.CompositeAlphaFlags(compositeAlphaFlags[i])
+		flagSupported := surfaceCapabilities.SupportedCompositeAlpha&alphaFlags != 0
+		if flagSupported {
+			compositeAlpha = compositeAlphaFlags[i]
+			break
+		}
+	}
+
+	var swapchain vk.Swapchain
+	scci := vk.SwapchainCreateInfo{
+		SType:           vk.StructureTypeSwapchainCreateInfo,
+		Surface:         vkSurface,
+		MinImageCount:   cfg.SwapchainSize,
+		ImageFormat:     surfaceFormats[0].Format,
+		ImageColorSpace: surfaceFormats[0].ColorSpace,
+		ImageExtent: vk.Extent2D{
+			Width:  cfg.ScreenWidth,
+			Height: cfg.ScreenHeight,
+		},
+		ImageUsage:       vk.ImageUsageFlags(vk.ImageUsageColorAttachmentBit),
+		PreTransform:     preTransform,
+		CompositeAlpha:   compositeAlpha,
+		PresentMode:      vk.PresentModeFifo,
+		Clipped:          vk.True,
+		ImageArrayLayers: 1,
+		ImageSharingMode: vk.SharingModeExclusive,
+		OldSwapchain:     nil,
+	}
+
+	if err := vk.Error(vk.CreateSwapchain(vkLogicalDevice, &scci, nil, &swapchain)); err != nil {
+		return nil, errors.New("vk.CreateSwapchain(): " + err.Error())
+	}
+
+	return &VulkanRenderer{
+		swapchain: swapchain,
+	}, nil
+}
+
+// VulkanRenderer is a Vulkan API renderer
+type VulkanRenderer struct {
+	Renderer
+
+	swapchain      vk.Swapchain
+	logicalDevice  vk.Device
+	physicalDevice vk.PhysicalDevice
+}
+
+// Destroy implements interface
+func (v *VulkanRenderer) Destroy() {
+	vk.DestroySwapchain(v.logicalDevice, v.swapchain, nil)
+	vk.DestroyDevice(v.logicalDevice, nil)
 }
