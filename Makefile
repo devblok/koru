@@ -15,19 +15,22 @@ vendor:
 	@echo Installing dependencies
 	dep ensure
 	make fix-vulkan
-${BINARY_FOLDER}/koru: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets
+${BINARY_FOLDER}/koru: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@echo Compiling koru
 	cd ./cmd/koru && \
 	go build -tags=vulkan -o ../../${BINARY_FOLDER}/koru
-${BINARY_FOLDER}/korucli: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets
+${BINARY_FOLDER}/korucli: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@echo Compiling korucli
 	cd ./cmd/korucli && \
 	go build -o ../../${BINARY_FOLDER}/korucli
-${BINARY_FOLDER}/korued: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets
+${BINARY_FOLDER}/korued: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@echo Compiling korued
 	cd ./cmd/korued && \
 	packr && \
 	go build -o ../../${BINARY_FOLDER}/korued
+${BINARY_FOLDER}/shaders: ${BINARY_FOLDER}
+	mkdir ${BINARY_FOLDER}/shaders
+	cd shaders && ./buildShaders.sh ${BINARY_FOLDER}/shaders
 
 Linux:
 	@echo Linux specific prepare
