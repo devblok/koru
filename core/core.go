@@ -48,3 +48,13 @@ type Renderer interface {
 	// Destroy destroys internal members
 	Destroy()
 }
+
+// ShaderType represents the type of shader thats loaded
+type ShaderType int
+
+// Identifies shader objects with their types
+const (
+	VertexShaderType ShaderType = iota
+	FragmentShaderType
+	UnknownShaderType
+)

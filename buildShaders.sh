@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+BINARY_FOLDER=$1
+
+for shader in $(ls shaders)
+do
+    glslangValidator -V shaders/$shader -o $BINARY_FOLDER/$shader.spv 
+done

@@ -20,4 +20,6 @@ type RendererConfiguration struct {
 
 	ScreenWidth  uint32
 	ScreenHeight uint32
+
+	ShaderDirectory string
 }

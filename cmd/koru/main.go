@@ -34,6 +34,7 @@ var configuration = core.Configuration{
 		DeviceExtensions: []string{
 			"VK_KHR_swapchain\x00",
 		},
+		ShaderDirectory: "./shaders",
 	},
 }
 
@@ -101,7 +102,7 @@ EventLoop:
 	for {
 		select {
 		case <-exitC:
-			log.Println("Even loop exited")
+			log.Println("Event loop exited")
 			break EventLoop
 		case <-time.FpsTicker().C:
 			var event sdl.Event

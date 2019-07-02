@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"unsafe"
 
 	vk "github.com/vulkan-go/vulkan"
@@ -209,6 +210,7 @@ type VulkanRenderer struct {
 	physicalDevice  vk.PhysicalDevice
 	imageFormat     vk.Format
 	imageViews      []vk.ImageView
+	shaders         []vk.ShaderModule
 
 	physicalDeviceInfo PhysicalDeviceInfo
 }
@@ -333,6 +335,10 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
+	if err := v.loadShaders(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -368,6 +374,32 @@ func (v *VulkanRenderer) createImageViews() error {
 	return nil
 }
 
+func (v *VulkanRenderer) loadShaders() error {
+	shaders, shaderTypes, err := loadShaderFilesFromDirectory(v.configuration.ShaderDirectory)
+	if err != nil {
+		return err
+	}
+
+	for idx, val := range shaders {
+		shaderContents, err := ioutil.ReadFile(val)
+		if err != nil {
+			return fmt.Errorf("failed to read shader file %s", val)
+		}
+
+		smci := vk.ShaderModuleCreateInfo{
+			SType:    vk.StructureTypeShaderModuleCreateInfo,
+			CodeSize: uint(len(shaderContents)),
+			PCode:    sliceUint32(shaderContents),
+		}
+
+		var shader vk.ShaderModule
+		if err := vk.Error(vk.CreateShaderModule(v.logicalDevice, &smci, nil, &shader)); err != nil {
+			return fmt.Errorf("vk.CreateShaderModule(type %d) [%d]: %s", shaderTypes[idx], idx, err.Error())
+		}
+	}
+	return nil
+}
+
 // DeviceIsSuitable implements interface
 func (v *VulkanRenderer) DeviceIsSuitable(device vk.PhysicalDevice) (bool, string) {
 	return true, ""
@@ -375,6 +407,14 @@ func (v *VulkanRenderer) DeviceIsSuitable(device vk.PhysicalDevice) (bool, strin
 
 // Destroy implements interface
 func (v *VulkanRenderer) Destroy() {
+	for _, m := range v.shaders {
+		vk.DestroyShaderModule(v.logicalDevice, m, nil)
+	}
+
+	for _, i := range v.imageViews {
+		vk.DestroyImageView(v.logicalDevice, i, nil)
+	}
+
 	vk.DestroySwapchain(v.logicalDevice, v.swapchain, nil)
 	vk.DestroyDevice(v.logicalDevice, nil)
 }
