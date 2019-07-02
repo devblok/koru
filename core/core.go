@@ -58,3 +58,15 @@ const (
 	FragmentShaderType
 	UnknownShaderType
 )
+
+// Shader is an abstraction for shader modules
+type Shader interface {
+	// Type returns the type of shader in question
+	Type() ShaderType
+
+	// Name Shader name
+	Name() string
+
+	// Inner returns the inner shader structure
+	Inner() interface{}
+}

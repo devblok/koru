@@ -9,6 +9,11 @@ import (
 
 const shaderSuffix = ".spv"
 
+// loadShaderFilesFromDirectory get the list of files that are compiled shaders
+// it is important that the file name does not contain more than two dots,
+// the first is always the name of the shader, second is type, and the third one
+// ensured that the shader is compiled (only compiled shaders have an .spv extension).
+// All shader files will be loaded.
 func loadShaderFilesFromDirectory(dir string) ([]string, []ShaderType, error) {
 	var (
 		shaders     []string
@@ -23,7 +28,7 @@ func loadShaderFilesFromDirectory(dir string) ([]string, []ShaderType, error) {
 			shader := strings.TrimSuffix(f.Name(), shaderSuffix)
 			nodes := strings.Split(shader, ".")
 
-			if len(nodes) < 2 {
+			if len(nodes) != 2 {
 				return nil
 			}
 

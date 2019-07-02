@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"strings"
 	"unsafe"
 
 	vk "github.com/vulkan-go/vulkan"
@@ -335,7 +337,13 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
-	if err := v.loadShaders(); err != nil {
+	shaders, err := v.loadShaders()
+	if err != nil {
+		return err
+	}
+
+	// shaderStages
+	if _, err := v.createPipelineShaderStagesInfo(shaders); err != nil {
 		return err
 	}
 
@@ -374,34 +382,65 @@ func (v *VulkanRenderer) createImageViews() error {
 	return nil
 }
 
-func (v *VulkanRenderer) loadShaders() error {
-	shaders, shaderTypes, err := loadShaderFilesFromDirectory(v.configuration.ShaderDirectory)
+func (v *VulkanRenderer) loadShaders() ([]Shader, error) {
+	var shaders []Shader
+	shaderFiles, shaderTypes, err := loadShaderFilesFromDirectory(v.configuration.ShaderDirectory)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	for idx, val := range shaders {
-		shaderContents, err := ioutil.ReadFile(val)
+	for idx, val := range shaderFiles {
+		shader, err := NewVulkanShader(val, shaderTypes[idx], v.logicalDevice)
 		if err != nil {
-			return fmt.Errorf("failed to read shader file %s", val)
+			return nil, err
 		}
-
-		smci := vk.ShaderModuleCreateInfo{
-			SType:    vk.StructureTypeShaderModuleCreateInfo,
-			CodeSize: uint(len(shaderContents)),
-			PCode:    sliceUint32(shaderContents),
-		}
-
-		var shader vk.ShaderModule
-		if err := vk.Error(vk.CreateShaderModule(v.logicalDevice, &smci, nil, &shader)); err != nil {
-			return fmt.Errorf("vk.CreateShaderModule(type %d) [%d]: %s", shaderTypes[idx], idx, err.Error())
-		}
+		shaders = append(shaders, shader)
 	}
-	return nil
+	return shaders, nil
+}
+
+func (v *VulkanRenderer) createPipelineShaderStagesInfo(shaders []Shader) ([]vk.PipelineShaderStageCreateInfo, error) {
+	var pipelineShaderStagesInfo []vk.PipelineShaderStageCreateInfo
+
+	for _, shader := range shaders {
+
+		var stage vk.ShaderStageFlagBits
+		switch shader.Type() {
+		case VertexShaderType:
+			stage = vk.ShaderStageFragmentBit
+		case FragmentShaderType:
+			stage = vk.ShaderStageVertexBit
+		default:
+			return nil, errors.New("unsupported shader type attempted creation")
+		}
+
+		var (
+			innerShader vk.ShaderModule
+			ok          bool
+		)
+		innerShader, ok = shader.Inner().(vk.ShaderModule)
+		if !ok {
+			return nil, errors.New("attempted shader cast is of invalid type")
+		}
+
+		log.Printf("Loaded shader with name: %s of type %d", shader.Name(), shader.Type())
+
+		pssci := vk.PipelineShaderStageCreateInfo{
+			SType:  vk.StructureTypePipelineShaderStageCreateInfo,
+			Stage:  stage,
+			Module: innerShader,
+			PName:  shader.Name(),
+		}
+
+		pipelineShaderStagesInfo = append(pipelineShaderStagesInfo, pssci)
+	}
+
+	return pipelineShaderStagesInfo, nil
 }
 
 // DeviceIsSuitable implements interface
 func (v *VulkanRenderer) DeviceIsSuitable(device vk.PhysicalDevice) (bool, string) {
+	// TODO: Add device suitability checking
 	return true, ""
 }
 
@@ -417,4 +456,57 @@ func (v *VulkanRenderer) Destroy() {
 
 	vk.DestroySwapchain(v.logicalDevice, v.swapchain, nil)
 	vk.DestroyDevice(v.logicalDevice, nil)
+}
+
+// NewVulkanShader creates a Vulkan specific shader wrapper
+func NewVulkanShader(path string, shaderType ShaderType, device vk.Device) (Shader, error) {
+	splitPath := strings.Split(path, "/")
+	filename := splitPath[len(splitPath)-1]
+	shaderName := strings.Split(filename, ".")[0]
+
+	shaderContents, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	smci := vk.ShaderModuleCreateInfo{
+		SType:    vk.StructureTypeShaderModuleCreateInfo,
+		CodeSize: uint(len(shaderContents)),
+		PCode:    sliceUint32(shaderContents),
+	}
+
+	var shader vk.ShaderModule
+	if err := vk.Error(vk.CreateShaderModule(device, &smci, nil, &shader)); err != nil {
+		return nil, fmt.Errorf("vk.CreateShaderModule(type %d): %s", shaderType, err.Error())
+	}
+
+	return &VulkanShader{
+		shader:     shader,
+		shaderType: shaderType,
+		name:       shaderName,
+	}, nil
+}
+
+// VulkanShader is a Vulkan specific shader
+type VulkanShader struct {
+	Shader
+
+	name       string
+	shaderType ShaderType
+	shader     vk.ShaderModule
+}
+
+// Type implements interface
+func (v *VulkanShader) Type() ShaderType {
+	return v.shaderType
+}
+
+// Inner implements interface
+func (v *VulkanShader) Inner() interface{} {
+	return v.shader
+}
+
+// Name implements interface
+func (v *VulkanShader) Name() string {
+	return v.name
 }
