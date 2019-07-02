@@ -213,6 +213,11 @@ type VulkanRenderer struct {
 	imageFormat     vk.Format
 	imageViews      []vk.ImageView
 	shaders         []vk.ShaderModule
+	viewport        vk.Viewport
+	scissor         vk.Rect2D
+	pipelineLayout  vk.PipelineLayout
+	renderPass      vk.RenderPass
+	pipelines       []vk.Pipeline
 
 	physicalDeviceInfo PhysicalDeviceInfo
 }
@@ -342,10 +347,174 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
-	// shaderStages
-	if _, err := v.createPipelineShaderStagesInfo(shaders); err != nil {
+	shaderStages, err := v.createPipelineShaderStagesInfo(shaders)
+	if err != nil {
 		return err
 	}
+
+	pvisci := vk.PipelineVertexInputStateCreateInfo{
+		SType: vk.StructureTypePipelineVertexInputStateCreateInfo,
+	}
+
+	piasci := vk.PipelineInputAssemblyStateCreateInfo{
+		SType:                  vk.StructureTypePipelineVertexInputStateCreateInfo,
+		Topology:               vk.PrimitiveTopologyTriangleList,
+		PrimitiveRestartEnable: vk.False,
+	}
+
+	v.viewport = vk.Viewport{
+		X:        0,
+		Y:        0,
+		Width:    float32(v.configuration.ScreenWidth),
+		Height:   float32(v.configuration.ScreenHeight),
+		MinDepth: 0,
+		MaxDepth: 1,
+	}
+
+	v.scissor = vk.Rect2D{
+		Offset: vk.Offset2D{
+			X: 0,
+			Y: 0,
+		},
+		Extent: vk.Extent2D{
+			Width:  v.configuration.ScreenWidth,
+			Height: v.configuration.ScreenHeight,
+		},
+	}
+
+	pvsci := vk.PipelineViewportStateCreateInfo{
+		SType:         vk.StructureTypePipelineViewportStateCreateInfo,
+		ViewportCount: 1,
+		PViewports:    []vk.Viewport{v.viewport},
+	}
+
+	prsci := vk.PipelineRasterizationStateCreateInfo{
+		SType:                   vk.StructureTypePipelineRasterizationStateCreateInfo,
+		DepthClampEnable:        vk.False,
+		PolygonMode:             vk.PolygonModeFill,
+		LineWidth:               1,
+		CullMode:                2, // VK_CULL_MODE_BACK_BIT = 0x00000002
+		FrontFace:               vk.FrontFaceClockwise,
+		DepthBiasEnable:         vk.False,
+		DepthBiasConstantFactor: 0,
+		DepthBiasClamp:          0,
+		DepthBiasSlopeFactor:    0,
+	}
+
+	pmsci := vk.PipelineMultisampleStateCreateInfo{
+		SType:                 vk.StructureTypePipelineMultisampleStateCreateInfo,
+		SampleShadingEnable:   vk.False,
+		RasterizationSamples:  vk.SampleCount1Bit,
+		MinSampleShading:      1,
+		PSampleMask:           nil,
+		AlphaToCoverageEnable: vk.False,
+		AlphaToOneEnable:      vk.False,
+	}
+
+	// TODO: Depth and stencil testing VkPipelineDepthStencilStateCreateInfo
+
+	pcbas := []vk.PipelineColorBlendAttachmentState{{
+		ColorWriteMask:      0xF, // ColorComponentFlagBits -> R | G | B | A
+		BlendEnable:         vk.False,
+		SrcColorBlendFactor: vk.BlendFactorOne,
+		DstColorBlendFactor: vk.BlendFactorZero,
+		ColorBlendOp:        vk.BlendOpAdd,
+		SrcAlphaBlendFactor: vk.BlendFactorOne,
+		DstAlphaBlendFactor: vk.BlendFactorZero,
+		AlphaBlendOp:        vk.BlendOpAdd,
+	}}
+
+	pcbsci := vk.PipelineColorBlendStateCreateInfo{
+		SType:           vk.StructureTypePipelineColorBlendStateCreateInfo,
+		LogicOpEnable:   vk.False,
+		LogicOp:         vk.LogicOpCopy,
+		AttachmentCount: 1,
+		PAttachments:    pcbas,
+		BlendConstants:  [4]float32{0, 0, 0, 0},
+	}
+
+	// TODO: When making dynamic state changes refer to  VkPipelineDynamicStateCreateInfo
+	// Dynamic state in vulkan-tutorial.com
+
+	plci := vk.PipelineLayoutCreateInfo{
+		SType:                  vk.StructureTypePipelineLayoutCreateInfo,
+		SetLayoutCount:         0,
+		PSetLayouts:            nil,
+		PushConstantRangeCount: 0,
+		PPushConstantRanges:    nil,
+	}
+
+	var pipelineLayout vk.PipelineLayout
+	if err := vk.Error(vk.CreatePipelineLayout(v.logicalDevice, &plci, nil, &pipelineLayout)); err != nil {
+		return errors.New("vk.CreatePipelineLayout(): " + err.Error())
+	}
+	v.pipelineLayout = pipelineLayout
+
+	colorAttachment := vk.AttachmentDescription{
+		Format:        v.imageFormat,
+		Samples:       vk.SampleCount1Bit,
+		LoadOp:        vk.AttachmentLoadOpClear,
+		StoreOp:       vk.AttachmentStoreOpStore,
+		StencilLoadOp: vk.AttachmentLoadOpDontCare,
+		FinalLayout:   vk.ImageLayoutPresentSrc,
+	}
+
+	colorAttachmentRef := vk.AttachmentReference{
+		Attachment: 0,
+		Layout:     vk.ImageLayoutColorAttachmentOptimal,
+	}
+
+	subpass := vk.SubpassDescription{
+		PipelineBindPoint:    vk.PipelineBindPointGraphics,
+		ColorAttachmentCount: 1,
+		PColorAttachments:    []vk.AttachmentReference{colorAttachmentRef},
+	}
+
+	rpci := vk.RenderPassCreateInfo{
+		SType:           vk.StructureTypeRenderPassCreateInfo,
+		AttachmentCount: 1,
+		PAttachments:    []vk.AttachmentDescription{colorAttachment},
+		SubpassCount:    1,
+		PSubpasses:      []vk.SubpassDescription{subpass},
+	}
+
+	var renderPass vk.RenderPass
+	if err := vk.Error(vk.CreateRenderPass(v.logicalDevice, &rpci, nil, &renderPass)); err != nil {
+		return errors.New("vk.CreateRenderPass(): " + err.Error())
+	}
+	v.renderPass = renderPass
+
+	gpci := []vk.GraphicsPipelineCreateInfo{{
+		SType:               vk.StructureTypeGraphicsPipelineCreateInfo,
+		StageCount:          uint32(len(shaderStages)),
+		PStages:             shaderStages,
+		PVertexInputState:   &pvisci,
+		PInputAssemblyState: &piasci,
+		PViewportState:      &pvsci,
+		PRasterizationState: &prsci,
+		PMultisampleState:   &pmsci,
+		PDepthStencilState:  nil,
+		PColorBlendState:    &pcbsci,
+		PDynamicState:       nil,
+		Layout:              v.pipelineLayout,
+		RenderPass:          renderPass,
+		Subpass:             0,
+	}}
+
+	pcci := vk.PipelineCacheCreateInfo{
+		SType: vk.StructureTypePipelineCacheCreateInfo,
+	}
+
+	var pipelineCache vk.PipelineCache
+	if err := vk.Error(vk.CreatePipelineCache(v.logicalDevice, &pcci, nil, &pipelineCache)); err != nil {
+		return errors.New("vk.CreatePipelineCache(): " + err.Error())
+	}
+
+	var pipelines []vk.Pipeline
+	if err := vk.Error(vk.CreateGraphicsPipelines(v.logicalDevice, pipelineCache, uint32(len(gpci)), gpci, nil, pipelines)); err != nil {
+		return errors.New("vk.CreateGraphicsPipelines(): " + err.Error())
+	}
+	v.pipelines = pipelines
 
 	return nil
 }
@@ -446,6 +615,13 @@ func (v *VulkanRenderer) DeviceIsSuitable(device vk.PhysicalDevice) (bool, strin
 
 // Destroy implements interface
 func (v *VulkanRenderer) Destroy() {
+	for _, p := range v.pipelines {
+		vk.DestroyPipeline(v.logicalDevice, p, nil)
+	}
+
+	vk.DestroyRenderPass(v.logicalDevice, v.renderPass, nil)
+	vk.DestroyPipelineLayout(v.logicalDevice, v.pipelineLayout, nil)
+
 	for _, m := range v.shaders {
 		vk.DestroyShaderModule(v.logicalDevice, m, nil)
 	}
