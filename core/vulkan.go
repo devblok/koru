@@ -55,6 +55,7 @@ func NewVulkanInstance(appInfo *vk.ApplicationInfo, window unsafe.Pointer, cfg I
 		return nil, errors.New("vk.Init(): " + err.Error())
 	}
 
+	/* Create instance */
 	{
 		instanceInfo := vk.InstanceCreateInfo{
 			SType:                   vk.StructureTypeInstanceCreateInfo,
@@ -73,9 +74,12 @@ func NewVulkanInstance(appInfo *vk.ApplicationInfo, window unsafe.Pointer, cfg I
 		v.instance = instance
 	}
 
-	if physicalDevices, err := enumerateDevices(v.instance); err != nil {
-		return nil, errors.New("core.enumerateDevices(): " + err.Error())
-	} else {
+	/* Enumerate devices */
+	{
+		physicalDevices, err := enumerateDevices(v.instance)
+		if err != nil {
+			return nil, errors.New("core.enumerateDevices(): " + err.Error())
+		}
 		v.availableDevices = physicalDevices
 	}
 

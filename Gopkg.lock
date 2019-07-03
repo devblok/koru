@@ -88,7 +88,7 @@
   name = "github.com/veandco/go-sdl2"
   packages = ["sdl"]
   pruneopts = "UT"
-  revision = "7a9b8d607870d8d03a1b739ddff015d4ab10qqf2eb"
+  revision = "7a9b8d607870d8d03a1b739ddff015d4ab10f2eb"
 
 [[projects]]
   branch = "master"
