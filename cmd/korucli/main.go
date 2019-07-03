@@ -8,7 +8,13 @@ import (
 )
 
 func main() {
-	coreInstance, err := core.NewVulkanInstance(core.DefaultVulkanApplicationInfo, nil, []string{})
+	cfg := core.InstanceConfiguration{
+		DebugMode:  true,
+		Extensions: []string{},
+		Layers:     []string{},
+	}
+
+	coreInstance, err := core.NewVulkanInstance(core.DefaultVulkanApplicationInfo, nil, cfg)
 	if err != nil {
 		panic(err)
 	}

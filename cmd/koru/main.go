@@ -7,7 +7,6 @@ import (
 
 	"github.com/koru3d/koru/core"
 	"github.com/veandco/go-sdl2/sdl"
-	"github.com/xlab/closer"
 )
 
 func init() {
@@ -62,15 +61,19 @@ func main() {
 	}
 	defer sdl.VulkanUnloadLibrary()
 
-	if vi, err := core.NewVulkanInstance(
-		core.DefaultVulkanApplicationInfo,
-		sdl.VulkanGetVkGetInstanceProcAddr(),
-		sdlWindow.VulkanGetInstanceExtensions()); err != nil {
-		panic(err)
-	} else {
-		vkInstance = vi
+	{
+		cfg := core.InstanceConfiguration{
+			DebugMode:  true,
+			Extensions: sdlWindow.VulkanGetInstanceExtensions(),
+			Layers:     []string{},
+		}
+
+		if vi, err := core.NewVulkanInstance(core.DefaultVulkanApplicationInfo, sdl.VulkanGetVkGetInstanceProcAddr(), cfg); err != nil {
+			panic(err)
+		} else {
+			vkInstance = vi
+		}
 	}
-	defer closer.Close()
 
 	sdlWindow = newWindow()
 	if srf, err := sdlWindow.VulkanCreateSurface(vkInstance.Inner()); err != nil {

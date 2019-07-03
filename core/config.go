@@ -3,7 +3,15 @@ package core
 // Configuration defines a global engine configuration setting
 type Configuration struct {
 	Time     TimeConfiguration
+	Instance InstanceConfiguration
 	Renderer RendererConfiguration
+}
+
+// InstanceConfiguration contains the rendering engine instacne config
+type InstanceConfiguration struct {
+	DebugMode  bool
+	Extensions []string
+	Layers     []string
 }
 
 // TimeConfiguration is used to configure time services

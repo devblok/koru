@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"strings"
 	"unsafe"
 
@@ -34,8 +33,15 @@ type PhysicalDeviceInfo struct {
 }
 
 // NewVulkanInstance creates a Vulkan instance
-func NewVulkanInstance(appInfo *vk.ApplicationInfo, window unsafe.Pointer, extensions []string) (Instance, error) {
-	v := &VulkanInstance{}
+func NewVulkanInstance(appInfo *vk.ApplicationInfo, window unsafe.Pointer, cfg InstanceConfiguration) (Instance, error) {
+	v := &VulkanInstance{
+		configuration: cfg,
+	}
+
+	if v.configuration.DebugMode {
+		v.configuration.Layers = append(v.configuration.Layers, "VK_LAYER_LUNARG_standard_validation\x00")
+		v.configuration.Extensions = append(v.configuration.Extensions, "VK_EXT_debug_report\x00")
+	}
 
 	if window == nil {
 		if err := vk.SetDefaultGetInstanceProcAddr(); err != nil {
@@ -49,23 +55,29 @@ func NewVulkanInstance(appInfo *vk.ApplicationInfo, window unsafe.Pointer, exten
 		return nil, errors.New("vk.Init(): " + err.Error())
 	}
 
-	instanceInfo := vk.InstanceCreateInfo{
-		SType:                   vk.StructureTypeInstanceCreateInfo,
-		PApplicationInfo:        appInfo,
-		EnabledExtensionCount:   uint32(len(extensions)),
-		PpEnabledExtensionNames: extensions,
+	{
+		instanceInfo := vk.InstanceCreateInfo{
+			SType:                   vk.StructureTypeInstanceCreateInfo,
+			PApplicationInfo:        appInfo,
+			EnabledExtensionCount:   uint32(len(v.configuration.Extensions)),
+			PpEnabledExtensionNames: v.configuration.Extensions,
+			EnabledLayerCount:       uint32(len(v.configuration.Layers)),
+			PpEnabledLayerNames:     v.configuration.Layers,
+		}
+
+		var instance vk.Instance
+		if err := vk.Error(vk.CreateInstance(&instanceInfo, nil, &instance)); err != nil {
+			return nil, errors.New("vk.CreateInstance(): " + err.Error())
+		}
+		vk.InitInstance(instance)
+		v.instance = instance
 	}
 
-	if err := vk.Error(vk.CreateInstance(&instanceInfo, nil, &v.instance)); err != nil {
-		return nil, errors.New("vk.CreateInstance(): " + err.Error())
-	}
-	vk.InitInstance(v.instance)
-
-	if err := v.enumerateDevices(); err != nil {
+	if physicalDevices, err := enumerateDevices(v.instance); err != nil {
 		return nil, errors.New("core.enumerateDevices(): " + err.Error())
+	} else {
+		v.availableDevices = physicalDevices
 	}
-
-	v.extensions = extensions
 
 	return v, nil
 }
@@ -74,27 +86,27 @@ func NewVulkanInstance(appInfo *vk.ApplicationInfo, window unsafe.Pointer, exten
 type VulkanInstance struct {
 	Instance
 
+	configuration InstanceConfiguration
+
 	availableDevices []vk.PhysicalDevice
 	surface          vk.Surface
 	instance         vk.Instance
-
-	extensions []string
 }
 
-func (v *VulkanInstance) enumerateDevices() error {
+func enumerateDevices(instance vk.Instance) ([]vk.PhysicalDevice, error) {
 	var deviceCount uint32
-	if err := vk.Error(vk.EnumeratePhysicalDevices(v.instance, &deviceCount, nil)); err != nil {
-		return fmt.Errorf("vulkan physical device enumeration failed: %s", err)
+	if err := vk.Error(vk.EnumeratePhysicalDevices(instance, &deviceCount, nil)); err != nil {
+		return nil, fmt.Errorf("vulkan physical device enumeration failed: %s", err)
 	}
-	v.availableDevices = make([]vk.PhysicalDevice, deviceCount)
-	if err := vk.Error(vk.EnumeratePhysicalDevices(v.instance, &deviceCount, v.availableDevices)); err != nil {
-		return fmt.Errorf("vulkan physical device enumeration failed: %s", err)
+	availableDevices := make([]vk.PhysicalDevice, deviceCount)
+	if err := vk.Error(vk.EnumeratePhysicalDevices(instance, &deviceCount, availableDevices)); err != nil {
+		return nil, fmt.Errorf("vulkan physical device enumeration failed: %s", err)
 	}
-	return nil
+	return availableDevices, nil
 }
 
 // PhysicalDevicesInfo implements interface
-func (v *VulkanInstance) PhysicalDevicesInfo() []PhysicalDeviceInfo {
+func (v VulkanInstance) PhysicalDevicesInfo() []PhysicalDeviceInfo {
 	pdi := make([]PhysicalDeviceInfo, len(v.availableDevices))
 	for i := range pdi {
 		pdi[i].Invalid = false
@@ -158,7 +170,7 @@ func (v *VulkanInstance) SetSurface(pSurface unsafe.Pointer) {
 }
 
 // Surface implements interface
-func (v *VulkanInstance) Surface() vk.Surface {
+func (v VulkanInstance) Surface() vk.Surface {
 	if v.surface == nil {
 		return vk.NullSurface
 	}
@@ -166,25 +178,22 @@ func (v *VulkanInstance) Surface() vk.Surface {
 }
 
 // Extensions implements interface
-func (v *VulkanInstance) Extensions() []string {
-	return v.extensions
+func (v VulkanInstance) Extensions() []string {
+	return v.configuration.Extensions
 }
 
 // AvailableDevices implements interface
-func (v *VulkanInstance) AvailableDevices() []vk.PhysicalDevice {
+func (v VulkanInstance) AvailableDevices() []vk.PhysicalDevice {
 	return v.availableDevices
 }
 
 // Inner implements interface
-func (v *VulkanInstance) Inner() interface{} {
+func (v VulkanInstance) Inner() interface{} {
 	return v.instance
 }
 
 // Destroy implements interface
-func (v *VulkanInstance) Destroy() {
-	if v == nil {
-		return
-	}
+func (v VulkanInstance) Destroy() {
 	v.availableDevices = nil
 	vk.DestroyInstance(v.instance, nil)
 }
@@ -192,10 +201,10 @@ func (v *VulkanInstance) Destroy() {
 // NewVulkanRenderer creates a not yet initialised Vulkan API renderer
 func NewVulkanRenderer(instance Instance, cfg RendererConfiguration) (Renderer, error) {
 	return &VulkanRenderer{
-		configuration:      cfg,
-		surface:            instance.Surface(),
-		physicalDevice:     instance.AvailableDevices()[0],
-		physicalDeviceInfo: instance.PhysicalDevicesInfo()[0],
+		configuration: cfg,
+		surface:       instance.Surface(),
+		//physicalDeviceInfo: instance.PhysicalDevicesInfo()[0],
+		physicalDevice: instance.AvailableDevices()[0],
 	}, nil
 }
 
@@ -205,21 +214,21 @@ type VulkanRenderer struct {
 
 	configuration RendererConfiguration
 
-	surface         vk.Surface
-	swapchain       vk.Swapchain
-	swapchainImages []vk.Image
-	logicalDevice   vk.Device
-	physicalDevice  vk.PhysicalDevice
-	imageFormat     vk.Format
-	imageViews      []vk.ImageView
-	shaders         []vk.ShaderModule
-	viewport        vk.Viewport
-	scissor         vk.Rect2D
-	pipelineLayout  vk.PipelineLayout
-	renderPass      vk.RenderPass
-	pipeline        vk.Pipeline
-
-	physicalDeviceInfo PhysicalDeviceInfo
+	surface            vk.Surface
+	swapchain          vk.Swapchain
+	swapchainImages    []vk.Image
+	logicalDevice      vk.Device
+	physicalDevice     vk.PhysicalDevice
+	imageFormat        vk.Format
+	imageViews         []vk.ImageView
+	shaders            []vk.ShaderModule
+	viewport           vk.Viewport
+	scissor            vk.Rect2D
+	pipelineLayout     vk.PipelineLayout
+	renderPass         vk.RenderPass
+	pipeline           vk.Pipeline
+	currentQueueIndex  uint32
+	graphicsQueueIndex uint32
 }
 
 // Initialise implements interface
@@ -229,10 +238,68 @@ func (v *VulkanRenderer) Initialise() error {
 		vk.KhrSwapchainExtensionName + "\x00",
 	}
 
+	{
+		var (
+			queueFamilyCount uint32
+			queueFamilies    []vk.QueueFamilyProperties
+		)
+		vk.GetPhysicalDeviceQueueFamilyProperties(v.physicalDevice, &queueFamilyCount, nil)
+		queueFamilies = make([]vk.QueueFamilyProperties, queueFamilyCount)
+		vk.GetPhysicalDeviceQueueFamilyProperties(v.physicalDevice, &queueFamilyCount, queueFamilies)
+
+		if queueFamilyCount == 0 {
+			return errors.New("vk.GetPhysicalDeviceQueueFamilyProperties(): no queuefamilies on GPU")
+		}
+
+		/* Find a suitable queue family for the target Vulkan mode */
+		var graphicsFound bool
+		var presentFound bool
+		var separateQueue bool
+		for i := uint32(0); i < queueFamilyCount; i++ {
+			var (
+				required        vk.QueueFlags
+				supportsPresent vk.Bool32
+				needsPresent    bool
+			)
+			if graphicsFound {
+				// looking for separate present queue
+				separateQueue = true
+				vk.GetPhysicalDeviceSurfaceSupport(v.physicalDevice, i, v.surface, &supportsPresent)
+				if supportsPresent.B() {
+					v.currentQueueIndex = i
+					presentFound = true
+					break
+				}
+			}
+
+			required |= vk.QueueFlags(vk.QueueGraphicsBit)
+			vk.GetPhysicalDeviceSurfaceSupport(v.physicalDevice, i, v.surface, &supportsPresent)
+			queueFamilies[i].Deref()
+			if queueFamilies[i].QueueFlags&required != 0 {
+				if !needsPresent || (needsPresent && supportsPresent.B()) {
+					v.graphicsQueueIndex = i
+					graphicsFound = true
+					break
+				} else if needsPresent {
+					v.graphicsQueueIndex = i
+					graphicsFound = true
+					// need present, but this one doesn't support
+					// continue lookup
+				}
+			}
+		}
+		if separateQueue && !presentFound {
+			return errors.New("vulkan error: could not found separate queue with present capabilities")
+		}
+		if !graphicsFound {
+			return errors.New("vulkan error: could not find a suitable queue family for the target Vulkan mode")
+		}
+	}
+
 	/* Logical Device setup */
 	queueInfos := []vk.DeviceQueueCreateInfo{{
 		SType:            vk.StructureTypeDeviceQueueCreateInfo,
-		QueueFamilyIndex: 1,
+		QueueFamilyIndex: 0,
 		QueueCount:       1,
 		PQueuePriorities: []float32{1, 0},
 	}}
@@ -273,15 +340,6 @@ func (v *VulkanRenderer) Initialise() error {
 
 	surfaceFormats[0].Deref()
 
-	// PreTransform
-	var preTransform vk.SurfaceTransformFlagBits
-	requiredTransform := vk.SurfaceTransformIdentityBit
-	if vk.SurfaceTransformFlagBits(surfaceCapabilities.SupportedTransforms) != 0 {
-		preTransform = requiredTransform
-	} else {
-		preTransform = surfaceCapabilities.CurrentTransform
-	}
-
 	compositeAlpha := vk.CompositeAlphaOpaqueBit
 	compositeAlphaFlags := []vk.CompositeAlphaFlagBits{
 		vk.CompositeAlphaOpaqueBit,
@@ -300,6 +358,17 @@ func (v *VulkanRenderer) Initialise() error {
 		}
 	}
 
+	{
+		var supported vk.Bool32
+		if err := vk.Error(vk.GetPhysicalDeviceSurfaceSupport(v.physicalDevice, 0, v.surface, &supported)); err != nil {
+			return errors.New("vk.GetPhysicalDeviceSurfaceSupport(): " + err.Error())
+		}
+
+		if !supported.B() {
+			return fmt.Errorf("vk.GetPhysicalDeviceSurfaceSupport(): surface is not supported")
+		}
+	}
+
 	var swapchain vk.Swapchain
 	scci := vk.SwapchainCreateInfo{
 		SType:           vk.StructureTypeSwapchainCreateInfo,
@@ -312,7 +381,7 @@ func (v *VulkanRenderer) Initialise() error {
 			Height: v.configuration.ScreenHeight,
 		},
 		ImageUsage:       vk.ImageUsageFlags(vk.ImageUsageColorAttachmentBit),
-		PreTransform:     preTransform,
+		PreTransform:     vk.SurfaceTransformIdentityBit,
 		CompositeAlpha:   compositeAlpha,
 		PresentMode:      vk.PresentModeFifo,
 		Clipped:          vk.True,
@@ -342,12 +411,12 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
-	shaders, err := v.loadShaders()
+	shaders, err := loadShaders(v.logicalDevice, v.configuration.ShaderDirectory)
 	if err != nil {
 		return err
 	}
 
-	shaderStages, err := v.createPipelineShaderStagesInfo(shaders)
+	shaderStages, err := createPipelineShaderStagesInfo(shaders)
 	if err != nil {
 		return err
 	}
@@ -376,35 +445,8 @@ func (v *VulkanRenderer) Initialise() error {
 	}
 
 	// TODO: Depth and stencil testing VkPipelineDepthStencilStateCreateInfo
-	// pdssci := vk.PipelineDepthStencilStateCreateInfo{
-	// 	SType:                 vk.StructureTypePipelineDepthStencilStateCreateInfo,
-	// 	DepthTestEnable:       vk.True,
-	// 	DepthWriteEnable:      vk.True,
-	// 	DepthCompareOp:        vk.CompareOpLessOrEqual,
-	// 	DepthBoundsTestEnable: vk.False,
-	// 	Back: vk.StencilOpState{
-	// 		FailOp:    vk.StencilOpKeep,
-	// 		PassOp:    vk.StencilOpKeep,
-	// 		CompareOp: vk.CompareOpAlways,
-	// 	},
-	// 	StencilTestEnable: vk.False,
-	// 	Front: vk.StencilOpState{
-	// 		FailOp:    vk.StencilOpKeep,
-	// 		PassOp:    vk.StencilOpKeep,
-	// 		CompareOp: vk.CompareOpAlways,
-	// 	},
-	// }
-
 	// TODO: When making dynamic state changes refer to  VkPipelineDynamicStateCreateInfo
 	// Dynamic state in vulkan-tutorial.com
-	// pdsci := vk.PipelineDynamicStateCreateInfo{
-	// 	SType:             vk.StructureTypePipelineDynamicStateCreateInfo,
-	// 	DynamicStateCount: 2,
-	// 	PDynamicStates: []vk.DynamicState{
-	// 		vk.DynamicStateScissor,
-	// 		vk.DynamicStateViewport,
-	// 	},
-	// }
 
 	/* Pipeline Layout */
 	{
@@ -418,26 +460,6 @@ func (v *VulkanRenderer) Initialise() error {
 		}
 		v.pipelineLayout = pipelineLayout
 	}
-
-	// renderPassAttachments := []vk.AttachmentDescription{{
-	// 	Format:         v.imageFormat,
-	// 	Samples:        vk.SampleCount1Bit,
-	// 	LoadOp:         vk.AttachmentLoadOpClear,
-	// 	StoreOp:        vk.AttachmentStoreOpStore,
-	// 	StencilLoadOp:  vk.AttachmentLoadOpDontCare,
-	// 	StencilStoreOp: vk.AttachmentStoreOpDontCare,
-	// 	InitialLayout:  vk.ImageLayoutUndefined,
-	// 	FinalLayout:    vk.ImageLayoutPresentSrc,
-	// }, {
-	// 	Format:         v.imageFormat,
-	// 	Samples:        vk.SampleCount1Bit,
-	// 	LoadOp:         vk.AttachmentLoadOpClear,
-	// 	StoreOp:        vk.AttachmentStoreOpDontCare,
-	// 	StencilLoadOp:  vk.AttachmentLoadOpDontCare,
-	// 	StencilStoreOp: vk.AttachmentStoreOpDontCare,
-	// 	InitialLayout:  vk.ImageLayoutUndefined,
-	// 	FinalLayout:    vk.ImageLayoutDepthStencilAttachmentOptimal,
-	// }}
 
 	/* Render pass */
 	{
@@ -457,16 +479,10 @@ func (v *VulkanRenderer) Initialise() error {
 			Layout:     vk.ImageLayoutColorAttachmentOptimal,
 		}}
 
-		stencilAttachmentRef := vk.AttachmentReference{
-			Attachment: 1,
-			Layout:     vk.ImageLayoutDepthStencilAttachmentOptimal,
-		}
-
 		subpass := vk.SubpassDescription{
-			PipelineBindPoint:       vk.PipelineBindPointGraphics,
-			ColorAttachmentCount:    uint32(len(colorAttachmentRef)),
-			PColorAttachments:       colorAttachmentRef,
-			PDepthStencilAttachment: &stencilAttachmentRef,
+			PipelineBindPoint:    vk.PipelineBindPointGraphics,
+			ColorAttachmentCount: uint32(len(colorAttachmentRef)),
+			PColorAttachments:    colorAttachmentRef,
 		}
 
 		rpci := vk.RenderPassCreateInfo{
@@ -486,39 +502,6 @@ func (v *VulkanRenderer) Initialise() error {
 
 	/* Pipeline */
 	{
-		pvisci := vk.PipelineVertexInputStateCreateInfo{
-			SType: vk.StructureTypePipelineVertexInputStateCreateInfo,
-		}
-
-		piasci := vk.PipelineInputAssemblyStateCreateInfo{
-			SType:                  vk.StructureTypePipelineInputAssemblyStateCreateInfo,
-			Topology:               vk.PrimitiveTopologyTriangleList,
-			PrimitiveRestartEnable: vk.False,
-		}
-
-		pvsci := vk.PipelineViewportStateCreateInfo{
-			SType:         vk.StructureTypePipelineViewportStateCreateInfo,
-			ViewportCount: 1,
-			PViewports:    []vk.Viewport{v.viewport},
-			ScissorCount:  1,
-			PScissors:     []vk.Rect2D{v.scissor},
-		}
-
-		prsci := vk.PipelineRasterizationStateCreateInfo{
-			SType:                   vk.StructureTypePipelineRasterizationStateCreateInfo,
-			DepthClampEnable:        vk.False,
-			RasterizerDiscardEnable: vk.False,
-			PolygonMode:             vk.PolygonModeFill,
-			LineWidth:               1.0,
-			CullMode:                vk.CullModeFlags(vk.CullModeBackBit),
-			FrontFace:               vk.FrontFaceClockwise,
-		}
-
-		pmsci := vk.PipelineMultisampleStateCreateInfo{
-			SType:                vk.StructureTypePipelineMultisampleStateCreateInfo,
-			RasterizationSamples: vk.SampleCount1Bit,
-		}
-
 		pcbas := []vk.PipelineColorBlendAttachmentState{{
 			ColorWriteMask:      0xF, // ColorComponentFlagBits -> R | G | B | A
 			BlendEnable:         vk.False,
@@ -530,32 +513,53 @@ func (v *VulkanRenderer) Initialise() error {
 			AlphaBlendOp:        vk.BlendOpZero,
 		}}
 
-		pcbsci := vk.PipelineColorBlendStateCreateInfo{
-			SType:           vk.StructureTypePipelineColorBlendStateCreateInfo,
-			LogicOpEnable:   vk.False,
-			LogicOp:         vk.LogicOpCopy,
-			AttachmentCount: uint32(len(pcbas)),
-			PAttachments:    pcbas,
-			BlendConstants:  [4]float32{0.0, 0.0, 0.0, 0.0},
-		}
-
 		gpci := []vk.GraphicsPipelineCreateInfo{{
-			SType:               vk.StructureTypeGraphicsPipelineCreateInfo,
-			StageCount:          uint32(len(shaderStages)),
-			PStages:             shaderStages,
-			PVertexInputState:   &pvisci,
-			PInputAssemblyState: &piasci,
-			PViewportState:      &pvsci,
-			PRasterizationState: &prsci,
-			PMultisampleState:   &pmsci,
-			PDepthStencilState:  nil,
-			PColorBlendState:    &pcbsci,
-			PDynamicState:       nil,
-			Layout:              v.pipelineLayout,
-			RenderPass:          v.renderPass,
-			Subpass:             0,
-			BasePipelineIndex:   -1,
-			BasePipelineHandle:  nil,
+			SType:      vk.StructureTypeGraphicsPipelineCreateInfo,
+			StageCount: uint32(len(shaderStages)),
+			PStages:    shaderStages,
+			PVertexInputState: &vk.PipelineVertexInputStateCreateInfo{
+				SType: vk.StructureTypePipelineVertexInputStateCreateInfo,
+			},
+			PInputAssemblyState: &vk.PipelineInputAssemblyStateCreateInfo{
+				SType:                  vk.StructureTypePipelineInputAssemblyStateCreateInfo,
+				Topology:               vk.PrimitiveTopologyTriangleList,
+				PrimitiveRestartEnable: vk.False,
+			},
+			PViewportState: &vk.PipelineViewportStateCreateInfo{
+				SType:         vk.StructureTypePipelineViewportStateCreateInfo,
+				ViewportCount: 1,
+				PViewports:    []vk.Viewport{v.viewport},
+				ScissorCount:  1,
+				PScissors:     []vk.Rect2D{v.scissor},
+			},
+			PRasterizationState: &vk.PipelineRasterizationStateCreateInfo{
+				SType:                   vk.StructureTypePipelineRasterizationStateCreateInfo,
+				DepthClampEnable:        vk.False,
+				RasterizerDiscardEnable: vk.False,
+				PolygonMode:             vk.PolygonModeFill,
+				LineWidth:               1.0,
+				CullMode:                vk.CullModeFlags(vk.CullModeBackBit),
+				FrontFace:               vk.FrontFaceClockwise,
+			},
+			PMultisampleState: &vk.PipelineMultisampleStateCreateInfo{
+				SType:                vk.StructureTypePipelineMultisampleStateCreateInfo,
+				RasterizationSamples: vk.SampleCount1Bit,
+			},
+			PDepthStencilState: nil,
+			PColorBlendState: &vk.PipelineColorBlendStateCreateInfo{
+				SType:           vk.StructureTypePipelineColorBlendStateCreateInfo,
+				LogicOpEnable:   vk.False,
+				LogicOp:         vk.LogicOpCopy,
+				AttachmentCount: uint32(len(pcbas)),
+				PAttachments:    pcbas,
+				BlendConstants:  [4]float32{0.0, 0.0, 0.0, 0.0},
+			},
+			PDynamicState:      nil,
+			Layout:             v.pipelineLayout,
+			RenderPass:         v.renderPass,
+			Subpass:            0,
+			BasePipelineIndex:  -1,
+			BasePipelineHandle: nil,
 		}}
 
 		pcci := vk.PipelineCacheCreateInfo{
@@ -577,7 +581,7 @@ func (v *VulkanRenderer) Initialise() error {
 	return nil
 }
 
-func (v *VulkanRenderer) createImageViews() error {
+func (v VulkanRenderer) createImageViews() error {
 	for idx := 0; idx < len(v.swapchainImages); idx++ {
 		var imageView vk.ImageView
 		ivci := vk.ImageViewCreateInfo{
@@ -609,15 +613,15 @@ func (v *VulkanRenderer) createImageViews() error {
 	return nil
 }
 
-func (v *VulkanRenderer) loadShaders() ([]Shader, error) {
+func loadShaders(logicalDevice vk.Device, shaderDir string) ([]Shader, error) {
 	var shaders []Shader
-	shaderFiles, shaderTypes, err := loadShaderFilesFromDirectory(v.configuration.ShaderDirectory)
+	shaderFiles, shaderTypes, err := loadShaderFilesFromDirectory(shaderDir)
 	if err != nil {
 		return nil, err
 	}
 
 	for idx, val := range shaderFiles {
-		shader, err := NewVulkanShader(val, shaderTypes[idx], v.logicalDevice)
+		shader, err := NewVulkanShader(val, shaderTypes[idx], logicalDevice)
 		if err != nil {
 			return nil, err
 		}
@@ -626,9 +630,8 @@ func (v *VulkanRenderer) loadShaders() ([]Shader, error) {
 	return shaders, nil
 }
 
-func (v *VulkanRenderer) createPipelineShaderStagesInfo(shaders []Shader) ([]vk.PipelineShaderStageCreateInfo, error) {
+func createPipelineShaderStagesInfo(shaders []Shader) ([]vk.PipelineShaderStageCreateInfo, error) {
 	var pipelineShaderStagesInfo []vk.PipelineShaderStageCreateInfo
-
 	for _, shader := range shaders {
 
 		var stage vk.ShaderStageFlagBits
@@ -650,13 +653,11 @@ func (v *VulkanRenderer) createPipelineShaderStagesInfo(shaders []Shader) ([]vk.
 			return nil, errors.New("attempted shader cast is of invalid type")
 		}
 
-		log.Printf("Loaded shader with name: %s of type %d", shader.Name(), shader.Type())
-
 		pssci := vk.PipelineShaderStageCreateInfo{
 			SType:  vk.StructureTypePipelineShaderStageCreateInfo,
 			Stage:  stage,
 			Module: innerShader,
-			PName:  shader.Name() + "\x00",
+			PName:  shader.Name() + "\000",
 		}
 
 		pipelineShaderStagesInfo = append(pipelineShaderStagesInfo, pssci)
@@ -666,13 +667,13 @@ func (v *VulkanRenderer) createPipelineShaderStagesInfo(shaders []Shader) ([]vk.
 }
 
 // DeviceIsSuitable implements interface
-func (v *VulkanRenderer) DeviceIsSuitable(device vk.PhysicalDevice) (bool, string) {
+func (v VulkanRenderer) DeviceIsSuitable(device vk.PhysicalDevice) (bool, string) {
 	// TODO: Add device suitability checking
 	return true, ""
 }
 
 // Destroy implements interface
-func (v *VulkanRenderer) Destroy() {
+func (v VulkanRenderer) Destroy() {
 	vk.DestroyPipeline(v.logicalDevice, v.pipeline, nil)
 	vk.DestroyRenderPass(v.logicalDevice, v.renderPass, nil)
 	vk.DestroyPipelineLayout(v.logicalDevice, v.pipelineLayout, nil)
@@ -728,16 +729,16 @@ type VulkanShader struct {
 }
 
 // Type implements interface
-func (v *VulkanShader) Type() ShaderType {
+func (v VulkanShader) Type() ShaderType {
 	return v.shaderType
 }
 
 // Inner implements interface
-func (v *VulkanShader) Inner() interface{} {
+func (v VulkanShader) Inner() interface{} {
 	return v.shader
 }
 
 // Name implements interface
-func (v *VulkanShader) Name() string {
+func (v VulkanShader) Name() string {
 	return v.name
 }

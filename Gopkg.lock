@@ -84,11 +84,11 @@
   version = "v1.4.2"
 
 [[projects]]
-  digest = "1:77655447447593975853000bc9bc95ea2c200213c3bdd04637a18c10c536d875"
+  digest = "1:4de8528c22261e2ffc2dfa8ec93c5b7f8078890ad118e4b7259b67ded4eeaa5e"
   name = "github.com/veandco/go-sdl2"
   packages = ["sdl"]
   pruneopts = "UT"
-  revision = "7a9b8d607870d8d03a1b739ddff015d4ab10f2eb"
+  revision = "7a9b8d607870d8d03a1b739ddff015d4ab10qqf2eb"
 
 [[projects]]
   branch = "master"
@@ -97,14 +97,6 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "df48e8cc153843e64eedaf872453d6d07a77dd8c"
-
-[[projects]]
-  branch = "master"
-  digest = "1:4f703e5098fdb9a6beb5415b625a3de1c4fcb500daa5a0771077cdc639a021ff"
-  name = "github.com/xlab/closer"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "03326addb7c265ee27cd5d5d145362165d8195a8"
 
 [[projects]]
   branch = "master"
@@ -124,7 +116,6 @@
     "github.com/sirupsen/logrus",
     "github.com/veandco/go-sdl2/sdl",
     "github.com/vulkan-go/vulkan",
-    "github.com/xlab/closer",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
