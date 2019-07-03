@@ -217,7 +217,7 @@ type VulkanRenderer struct {
 	scissor         vk.Rect2D
 	pipelineLayout  vk.PipelineLayout
 	renderPass      vk.RenderPass
-	pipelines       []vk.Pipeline
+	pipeline        vk.Pipeline
 
 	physicalDeviceInfo PhysicalDeviceInfo
 }
@@ -352,169 +352,227 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
-	pvisci := vk.PipelineVertexInputStateCreateInfo{
-		SType: vk.StructureTypePipelineVertexInputStateCreateInfo,
-	}
+	/* Viewport and scissors creation */
+	{
+		v.viewport = vk.Viewport{
+			X:        0,
+			Y:        0,
+			Width:    float32(v.configuration.ScreenWidth),
+			Height:   float32(v.configuration.ScreenHeight),
+			MinDepth: 0,
+			MaxDepth: 1,
+		}
 
-	piasci := vk.PipelineInputAssemblyStateCreateInfo{
-		SType:                  vk.StructureTypePipelineVertexInputStateCreateInfo,
-		Topology:               vk.PrimitiveTopologyTriangleList,
-		PrimitiveRestartEnable: vk.False,
-	}
-
-	v.viewport = vk.Viewport{
-		X:        0,
-		Y:        0,
-		Width:    float32(v.configuration.ScreenWidth),
-		Height:   float32(v.configuration.ScreenHeight),
-		MinDepth: 0,
-		MaxDepth: 1,
-	}
-
-	v.scissor = vk.Rect2D{
-		Offset: vk.Offset2D{
-			X: 0,
-			Y: 0,
-		},
-		Extent: vk.Extent2D{
-			Width:  v.configuration.ScreenWidth,
-			Height: v.configuration.ScreenHeight,
-		},
-	}
-
-	pvsci := vk.PipelineViewportStateCreateInfo{
-		SType:         vk.StructureTypePipelineViewportStateCreateInfo,
-		ViewportCount: 1,
-		PViewports:    []vk.Viewport{v.viewport},
-	}
-
-	prsci := vk.PipelineRasterizationStateCreateInfo{
-		SType:                   vk.StructureTypePipelineRasterizationStateCreateInfo,
-		DepthClampEnable:        vk.False,
-		PolygonMode:             vk.PolygonModeFill,
-		LineWidth:               1,
-		CullMode:                2, // VK_CULL_MODE_BACK_BIT = 0x00000002
-		FrontFace:               vk.FrontFaceClockwise,
-		DepthBiasEnable:         vk.False,
-		DepthBiasConstantFactor: 0,
-		DepthBiasClamp:          0,
-		DepthBiasSlopeFactor:    0,
-	}
-
-	pmsci := vk.PipelineMultisampleStateCreateInfo{
-		SType:                 vk.StructureTypePipelineMultisampleStateCreateInfo,
-		SampleShadingEnable:   vk.False,
-		RasterizationSamples:  vk.SampleCount1Bit,
-		MinSampleShading:      1,
-		PSampleMask:           nil,
-		AlphaToCoverageEnable: vk.False,
-		AlphaToOneEnable:      vk.False,
+		v.scissor = vk.Rect2D{
+			Offset: vk.Offset2D{
+				X: 0,
+				Y: 0,
+			},
+			Extent: vk.Extent2D{
+				Width:  v.configuration.ScreenWidth,
+				Height: v.configuration.ScreenHeight,
+			},
+		}
 	}
 
 	// TODO: Depth and stencil testing VkPipelineDepthStencilStateCreateInfo
-
-	pcbas := []vk.PipelineColorBlendAttachmentState{{
-		ColorWriteMask:      0xF, // ColorComponentFlagBits -> R | G | B | A
-		BlendEnable:         vk.False,
-		SrcColorBlendFactor: vk.BlendFactorOne,
-		DstColorBlendFactor: vk.BlendFactorZero,
-		ColorBlendOp:        vk.BlendOpAdd,
-		SrcAlphaBlendFactor: vk.BlendFactorOne,
-		DstAlphaBlendFactor: vk.BlendFactorZero,
-		AlphaBlendOp:        vk.BlendOpAdd,
-	}}
-
-	pcbsci := vk.PipelineColorBlendStateCreateInfo{
-		SType:           vk.StructureTypePipelineColorBlendStateCreateInfo,
-		LogicOpEnable:   vk.False,
-		LogicOp:         vk.LogicOpCopy,
-		AttachmentCount: 1,
-		PAttachments:    pcbas,
-		BlendConstants:  [4]float32{0, 0, 0, 0},
-	}
+	// pdssci := vk.PipelineDepthStencilStateCreateInfo{
+	// 	SType:                 vk.StructureTypePipelineDepthStencilStateCreateInfo,
+	// 	DepthTestEnable:       vk.True,
+	// 	DepthWriteEnable:      vk.True,
+	// 	DepthCompareOp:        vk.CompareOpLessOrEqual,
+	// 	DepthBoundsTestEnable: vk.False,
+	// 	Back: vk.StencilOpState{
+	// 		FailOp:    vk.StencilOpKeep,
+	// 		PassOp:    vk.StencilOpKeep,
+	// 		CompareOp: vk.CompareOpAlways,
+	// 	},
+	// 	StencilTestEnable: vk.False,
+	// 	Front: vk.StencilOpState{
+	// 		FailOp:    vk.StencilOpKeep,
+	// 		PassOp:    vk.StencilOpKeep,
+	// 		CompareOp: vk.CompareOpAlways,
+	// 	},
+	// }
 
 	// TODO: When making dynamic state changes refer to  VkPipelineDynamicStateCreateInfo
 	// Dynamic state in vulkan-tutorial.com
+	// pdsci := vk.PipelineDynamicStateCreateInfo{
+	// 	SType:             vk.StructureTypePipelineDynamicStateCreateInfo,
+	// 	DynamicStateCount: 2,
+	// 	PDynamicStates: []vk.DynamicState{
+	// 		vk.DynamicStateScissor,
+	// 		vk.DynamicStateViewport,
+	// 	},
+	// }
 
-	plci := vk.PipelineLayoutCreateInfo{
-		SType:                  vk.StructureTypePipelineLayoutCreateInfo,
-		SetLayoutCount:         0,
-		PSetLayouts:            nil,
-		PushConstantRangeCount: 0,
-		PPushConstantRanges:    nil,
+	/* Pipeline Layout */
+	{
+		plci := vk.PipelineLayoutCreateInfo{
+			SType: vk.StructureTypePipelineLayoutCreateInfo,
+		}
+
+		var pipelineLayout vk.PipelineLayout
+		if err := vk.Error(vk.CreatePipelineLayout(v.logicalDevice, &plci, nil, &pipelineLayout)); err != nil {
+			return errors.New("vk.CreatePipelineLayout(): " + err.Error())
+		}
+		v.pipelineLayout = pipelineLayout
 	}
 
-	var pipelineLayout vk.PipelineLayout
-	if err := vk.Error(vk.CreatePipelineLayout(v.logicalDevice, &plci, nil, &pipelineLayout)); err != nil {
-		return errors.New("vk.CreatePipelineLayout(): " + err.Error())
-	}
-	v.pipelineLayout = pipelineLayout
+	// renderPassAttachments := []vk.AttachmentDescription{{
+	// 	Format:         v.imageFormat,
+	// 	Samples:        vk.SampleCount1Bit,
+	// 	LoadOp:         vk.AttachmentLoadOpClear,
+	// 	StoreOp:        vk.AttachmentStoreOpStore,
+	// 	StencilLoadOp:  vk.AttachmentLoadOpDontCare,
+	// 	StencilStoreOp: vk.AttachmentStoreOpDontCare,
+	// 	InitialLayout:  vk.ImageLayoutUndefined,
+	// 	FinalLayout:    vk.ImageLayoutPresentSrc,
+	// }, {
+	// 	Format:         v.imageFormat,
+	// 	Samples:        vk.SampleCount1Bit,
+	// 	LoadOp:         vk.AttachmentLoadOpClear,
+	// 	StoreOp:        vk.AttachmentStoreOpDontCare,
+	// 	StencilLoadOp:  vk.AttachmentLoadOpDontCare,
+	// 	StencilStoreOp: vk.AttachmentStoreOpDontCare,
+	// 	InitialLayout:  vk.ImageLayoutUndefined,
+	// 	FinalLayout:    vk.ImageLayoutDepthStencilAttachmentOptimal,
+	// }}
 
-	colorAttachment := vk.AttachmentDescription{
-		Format:        v.imageFormat,
-		Samples:       vk.SampleCount1Bit,
-		LoadOp:        vk.AttachmentLoadOpClear,
-		StoreOp:       vk.AttachmentStoreOpStore,
-		StencilLoadOp: vk.AttachmentLoadOpDontCare,
-		FinalLayout:   vk.ImageLayoutPresentSrc,
+	/* Render pass */
+	{
+		colorAttachment := vk.AttachmentDescription{
+			Format:         v.imageFormat,
+			Samples:        vk.SampleCount1Bit,
+			LoadOp:         vk.AttachmentLoadOpClear,
+			StoreOp:        vk.AttachmentStoreOpStore,
+			StencilStoreOp: vk.AttachmentStoreOpDontCare,
+			StencilLoadOp:  vk.AttachmentLoadOpDontCare,
+			InitialLayout:  vk.ImageLayoutUndefined,
+			FinalLayout:    vk.ImageLayoutPresentSrc,
+		}
+
+		colorAttachmentRef := []vk.AttachmentReference{{
+			Attachment: 0,
+			Layout:     vk.ImageLayoutColorAttachmentOptimal,
+		}}
+
+		stencilAttachmentRef := vk.AttachmentReference{
+			Attachment: 1,
+			Layout:     vk.ImageLayoutDepthStencilAttachmentOptimal,
+		}
+
+		subpass := vk.SubpassDescription{
+			PipelineBindPoint:       vk.PipelineBindPointGraphics,
+			ColorAttachmentCount:    uint32(len(colorAttachmentRef)),
+			PColorAttachments:       colorAttachmentRef,
+			PDepthStencilAttachment: &stencilAttachmentRef,
+		}
+
+		rpci := vk.RenderPassCreateInfo{
+			SType:           vk.StructureTypeRenderPassCreateInfo,
+			AttachmentCount: 1,
+			PAttachments:    []vk.AttachmentDescription{colorAttachment},
+			SubpassCount:    1,
+			PSubpasses:      []vk.SubpassDescription{subpass},
+		}
+
+		var renderPass vk.RenderPass
+		if err := vk.Error(vk.CreateRenderPass(v.logicalDevice, &rpci, nil, &renderPass)); err != nil {
+			return errors.New("vk.CreateRenderPass(): " + err.Error())
+		}
+		v.renderPass = renderPass
 	}
 
-	colorAttachmentRef := vk.AttachmentReference{
-		Attachment: 0,
-		Layout:     vk.ImageLayoutColorAttachmentOptimal,
-	}
+	/* Pipeline */
+	{
+		pvisci := vk.PipelineVertexInputStateCreateInfo{
+			SType: vk.StructureTypePipelineVertexInputStateCreateInfo,
+		}
 
-	subpass := vk.SubpassDescription{
-		PipelineBindPoint:    vk.PipelineBindPointGraphics,
-		ColorAttachmentCount: 1,
-		PColorAttachments:    []vk.AttachmentReference{colorAttachmentRef},
-	}
+		piasci := vk.PipelineInputAssemblyStateCreateInfo{
+			SType:                  vk.StructureTypePipelineInputAssemblyStateCreateInfo,
+			Topology:               vk.PrimitiveTopologyTriangleList,
+			PrimitiveRestartEnable: vk.False,
+		}
 
-	rpci := vk.RenderPassCreateInfo{
-		SType:           vk.StructureTypeRenderPassCreateInfo,
-		AttachmentCount: 1,
-		PAttachments:    []vk.AttachmentDescription{colorAttachment},
-		SubpassCount:    1,
-		PSubpasses:      []vk.SubpassDescription{subpass},
-	}
+		pvsci := vk.PipelineViewportStateCreateInfo{
+			SType:         vk.StructureTypePipelineViewportStateCreateInfo,
+			ViewportCount: 1,
+			PViewports:    []vk.Viewport{v.viewport},
+			ScissorCount:  1,
+			PScissors:     []vk.Rect2D{v.scissor},
+		}
 
-	var renderPass vk.RenderPass
-	if err := vk.Error(vk.CreateRenderPass(v.logicalDevice, &rpci, nil, &renderPass)); err != nil {
-		return errors.New("vk.CreateRenderPass(): " + err.Error())
-	}
-	v.renderPass = renderPass
+		prsci := vk.PipelineRasterizationStateCreateInfo{
+			SType:                   vk.StructureTypePipelineRasterizationStateCreateInfo,
+			DepthClampEnable:        vk.False,
+			RasterizerDiscardEnable: vk.False,
+			PolygonMode:             vk.PolygonModeFill,
+			LineWidth:               1.0,
+			CullMode:                vk.CullModeFlags(vk.CullModeBackBit),
+			FrontFace:               vk.FrontFaceClockwise,
+		}
 
-	gpci := []vk.GraphicsPipelineCreateInfo{{
-		SType:               vk.StructureTypeGraphicsPipelineCreateInfo,
-		StageCount:          uint32(len(shaderStages)),
-		PStages:             shaderStages,
-		PVertexInputState:   &pvisci,
-		PInputAssemblyState: &piasci,
-		PViewportState:      &pvsci,
-		PRasterizationState: &prsci,
-		PMultisampleState:   &pmsci,
-		PDepthStencilState:  nil,
-		PColorBlendState:    &pcbsci,
-		PDynamicState:       nil,
-		Layout:              v.pipelineLayout,
-		RenderPass:          renderPass,
-		Subpass:             0,
-	}}
+		pmsci := vk.PipelineMultisampleStateCreateInfo{
+			SType:                vk.StructureTypePipelineMultisampleStateCreateInfo,
+			RasterizationSamples: vk.SampleCount1Bit,
+		}
 
-	pcci := vk.PipelineCacheCreateInfo{
-		SType: vk.StructureTypePipelineCacheCreateInfo,
-	}
+		pcbas := []vk.PipelineColorBlendAttachmentState{{
+			ColorWriteMask:      0xF, // ColorComponentFlagBits -> R | G | B | A
+			BlendEnable:         vk.False,
+			SrcColorBlendFactor: vk.BlendFactorOne,
+			DstColorBlendFactor: vk.BlendFactorZero,
+			ColorBlendOp:        vk.BlendOpAdd,
+			SrcAlphaBlendFactor: vk.BlendFactorOne,
+			DstAlphaBlendFactor: vk.BlendFactorZero,
+			AlphaBlendOp:        vk.BlendOpZero,
+		}}
 
-	var pipelineCache vk.PipelineCache
-	if err := vk.Error(vk.CreatePipelineCache(v.logicalDevice, &pcci, nil, &pipelineCache)); err != nil {
-		return errors.New("vk.CreatePipelineCache(): " + err.Error())
-	}
+		pcbsci := vk.PipelineColorBlendStateCreateInfo{
+			SType:           vk.StructureTypePipelineColorBlendStateCreateInfo,
+			LogicOpEnable:   vk.False,
+			LogicOp:         vk.LogicOpCopy,
+			AttachmentCount: uint32(len(pcbas)),
+			PAttachments:    pcbas,
+			BlendConstants:  [4]float32{0.0, 0.0, 0.0, 0.0},
+		}
 
-	var pipelines []vk.Pipeline
-	if err := vk.Error(vk.CreateGraphicsPipelines(v.logicalDevice, pipelineCache, uint32(len(gpci)), gpci, nil, pipelines)); err != nil {
-		return errors.New("vk.CreateGraphicsPipelines(): " + err.Error())
+		gpci := []vk.GraphicsPipelineCreateInfo{{
+			SType:               vk.StructureTypeGraphicsPipelineCreateInfo,
+			StageCount:          uint32(len(shaderStages)),
+			PStages:             shaderStages,
+			PVertexInputState:   &pvisci,
+			PInputAssemblyState: &piasci,
+			PViewportState:      &pvsci,
+			PRasterizationState: &prsci,
+			PMultisampleState:   &pmsci,
+			PDepthStencilState:  nil,
+			PColorBlendState:    &pcbsci,
+			PDynamicState:       nil,
+			Layout:              v.pipelineLayout,
+			RenderPass:          v.renderPass,
+			Subpass:             0,
+			BasePipelineIndex:   -1,
+			BasePipelineHandle:  nil,
+		}}
+
+		pcci := vk.PipelineCacheCreateInfo{
+			SType: vk.StructureTypePipelineCacheCreateInfo,
+		}
+
+		var pipelineCache vk.PipelineCache
+		if err := vk.Error(vk.CreatePipelineCache(v.logicalDevice, &pcci, nil, &pipelineCache)); err != nil {
+			return errors.New("vk.CreatePipelineCache(): " + err.Error())
+		}
+
+		pipelines := make([]vk.Pipeline, len(gpci))
+		if err := vk.Error(vk.CreateGraphicsPipelines(v.logicalDevice, pipelineCache, uint32(len(gpci)), gpci, nil, pipelines)); err != nil {
+			return errors.New("vk.CreateGraphicsPipelines(): " + err.Error())
+		}
+		v.pipeline = pipelines[0]
 	}
-	v.pipelines = pipelines
 
 	return nil
 }
@@ -598,7 +656,7 @@ func (v *VulkanRenderer) createPipelineShaderStagesInfo(shaders []Shader) ([]vk.
 			SType:  vk.StructureTypePipelineShaderStageCreateInfo,
 			Stage:  stage,
 			Module: innerShader,
-			PName:  shader.Name(),
+			PName:  shader.Name() + "\x00",
 		}
 
 		pipelineShaderStagesInfo = append(pipelineShaderStagesInfo, pssci)
@@ -615,10 +673,7 @@ func (v *VulkanRenderer) DeviceIsSuitable(device vk.PhysicalDevice) (bool, strin
 
 // Destroy implements interface
 func (v *VulkanRenderer) Destroy() {
-	for _, p := range v.pipelines {
-		vk.DestroyPipeline(v.logicalDevice, p, nil)
-	}
-
+	vk.DestroyPipeline(v.logicalDevice, v.pipeline, nil)
 	vk.DestroyRenderPass(v.logicalDevice, v.renderPass, nil)
 	vk.DestroyPipelineLayout(v.logicalDevice, v.pipelineLayout, nil)
 

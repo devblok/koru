@@ -1,4 +1,6 @@
 #version 400
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_ARB_shading_language_420pack : enable
 
 vec2 positions[3] = vec2[](
     vec2(0.0, -0.5),
