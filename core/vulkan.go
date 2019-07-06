@@ -34,13 +34,9 @@ type PhysicalDeviceInfo struct {
 
 // NewVulkanInstance creates a Vulkan instance
 func NewVulkanInstance(appInfo *vk.ApplicationInfo, window unsafe.Pointer, cfg InstanceConfiguration) (Instance, error) {
-	v := &VulkanInstance{
-		configuration: cfg,
-	}
-
-	if v.configuration.DebugMode {
-		v.configuration.Layers = append(v.configuration.Layers, "VK_LAYER_LUNARG_standard_validation\x00")
-		v.configuration.Extensions = append(v.configuration.Extensions, "VK_EXT_debug_report\x00")
+	if cfg.DebugMode {
+		cfg.Layers = append(cfg.Layers, "VK_LAYER_LUNARG_standard_validation\x00")
+		cfg.Extensions = append(cfg.Extensions, "VK_EXT_debug_report\x00")
 	}
 
 	if window == nil {
@@ -56,39 +52,37 @@ func NewVulkanInstance(appInfo *vk.ApplicationInfo, window unsafe.Pointer, cfg I
 	}
 
 	/* Create instance */
-	{
-		instanceInfo := vk.InstanceCreateInfo{
-			SType:                   vk.StructureTypeInstanceCreateInfo,
-			PApplicationInfo:        appInfo,
-			EnabledExtensionCount:   uint32(len(v.configuration.Extensions)),
-			PpEnabledExtensionNames: v.configuration.Extensions,
-			EnabledLayerCount:       uint32(len(v.configuration.Layers)),
-			PpEnabledLayerNames:     v.configuration.Layers,
-		}
-
-		var instance vk.Instance
-		if err := vk.Error(vk.CreateInstance(&instanceInfo, nil, &instance)); err != nil {
-			return nil, errors.New("vk.CreateInstance(): " + err.Error())
-		}
-		vk.InitInstance(instance)
-		v.instance = instance
+	instanceInfo := vk.InstanceCreateInfo{
+		SType:                   vk.StructureTypeInstanceCreateInfo,
+		PApplicationInfo:        appInfo,
+		EnabledExtensionCount:   uint32(len(cfg.Extensions)),
+		PpEnabledExtensionNames: cfg.Extensions,
+		EnabledLayerCount:       uint32(len(cfg.Layers)),
+		PpEnabledLayerNames:     cfg.Layers,
 	}
+
+	var instance vk.Instance
+	if err := vk.Error(vk.CreateInstance(&instanceInfo, nil, &instance)); err != nil {
+		return nil, errors.New("vk.CreateInstance(): " + err.Error())
+	}
+	vk.InitInstance(instance)
 
 	/* Enumerate devices */
-	{
-		physicalDevices, err := enumerateDevices(v.instance)
-		if err != nil {
-			return nil, errors.New("core.enumerateDevices(): " + err.Error())
-		}
-		v.availableDevices = physicalDevices
+	physicalDevices, err := enumerateDevices(instance)
+	if err != nil {
+		return nil, errors.New("core.enumerateDevices(): " + err.Error())
 	}
 
-	return v, nil
+	return &VulkanInstance{
+		configuration:    cfg,
+		instance:         instance,
+		availableDevices: physicalDevices,
+	}, nil
 }
 
 // VulkanInstance describes a Vulkan API Instance
 type VulkanInstance struct {
-	Instance
+	Destroyable
 
 	configuration InstanceConfiguration
 
@@ -181,6 +175,11 @@ func (v VulkanInstance) Surface() vk.Surface {
 	return v.surface
 }
 
+// Instance returns internal vk.Instance
+func (v *VulkanInstance) Instance() interface{} {
+	return v.instance
+}
+
 // Extensions implements interface
 func (v VulkanInstance) Extensions() []string {
 	return v.configuration.Extensions
@@ -189,11 +188,6 @@ func (v VulkanInstance) Extensions() []string {
 // AvailableDevices implements interface
 func (v VulkanInstance) AvailableDevices() []vk.PhysicalDevice {
 	return v.availableDevices
-}
-
-// Inner implements interface
-func (v VulkanInstance) Inner() interface{} {
-	return v.instance
 }
 
 // Destroy implements interface
@@ -205,15 +199,15 @@ func (v VulkanInstance) Destroy() {
 // NewVulkanRenderer creates a not yet initialised Vulkan API renderer
 func NewVulkanRenderer(instance Instance, cfg RendererConfiguration) (Renderer, error) {
 	return &VulkanRenderer{
-		configuration: cfg,
-		surface:       instance.Surface(),
-		//physicalDeviceInfo: instance.PhysicalDevicesInfo()[0],
+		configuration:  cfg,
+		surface:        instance.Surface(),
 		physicalDevice: instance.AvailableDevices()[0],
 	}, nil
 }
 
 // VulkanRenderer is a Vulkan API renderer
 type VulkanRenderer struct {
+	Destroyable
 	Renderer
 
 	configuration RendererConfiguration
@@ -648,20 +642,18 @@ func createPipelineShaderStagesInfo(shaders []Shader) ([]vk.PipelineShaderStageC
 			return nil, errors.New("unsupported shader type attempted creation")
 		}
 
-		var (
-			innerShader vk.ShaderModule
-			ok          bool
-		)
-		innerShader, ok = shader.Inner().(vk.ShaderModule)
-		if !ok {
-			return nil, errors.New("attempted shader cast is of invalid type")
+		var shaderModule vk.ShaderModule
+		if sm, ok := shader.ShaderModule().(vk.ShaderModule); ok {
+			shaderModule = sm
+		} else {
+			return nil, errors.New("failed to assert shader module to it's original type")
 		}
 
 		pssci := vk.PipelineShaderStageCreateInfo{
 			SType:  vk.StructureTypePipelineShaderStageCreateInfo,
 			Stage:  stage,
-			Module: innerShader,
-			PName:  shader.Name() + "\000",
+			Module: shaderModule,
+			PName:  "main\x00",
 		}
 
 		pipelineShaderStagesInfo = append(pipelineShaderStagesInfo, pssci)
@@ -720,15 +712,18 @@ func NewVulkanShader(path string, shaderType ShaderType, device vk.Device) (Shad
 		shader:     shader,
 		shaderType: shaderType,
 		name:       shaderName,
+		device:     device,
 	}, nil
 }
 
 // VulkanShader is a Vulkan specific shader
 type VulkanShader struct {
+	Destroyable
 	Shader
 
 	name       string
 	shaderType ShaderType
+	device     vk.Device
 	shader     vk.ShaderModule
 }
 
@@ -737,12 +732,17 @@ func (v VulkanShader) Type() ShaderType {
 	return v.shaderType
 }
 
-// Inner implements interface
-func (v VulkanShader) Inner() interface{} {
+// ShaderModule is an accssor to the internal vk.ShaderModule
+func (v VulkanShader) ShaderModule() interface{} {
 	return v.shader
 }
 
 // Name implements interface
 func (v VulkanShader) Name() string {
 	return v.name
+}
+
+// Destroy implements interface
+func (v VulkanShader) Destroy() {
+	vk.DestroyShaderModule(v.device, v.shader, nil)
 }

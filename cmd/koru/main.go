@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"unsafe"
 
-	"github.com/koru3d/koru/core"
+	"github.com/devblok/koru/core"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
@@ -76,7 +76,7 @@ func main() {
 	}
 
 	sdlWindow = newWindow()
-	if srf, err := sdlWindow.VulkanCreateSurface(vkInstance.Inner()); err != nil {
+	if srf, err := sdlWindow.VulkanCreateSurface(vkInstance.Instance()); err != nil {
 		panic(err)
 	} else {
 		sdlSurface = srf

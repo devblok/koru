@@ -1,6 +1,6 @@
 [![experimental](http://badges.github.io/stability-badges/dist/experimental.svg)](http://github.com/badges/stability-badges)
-[![Maintainability](https://api.codeclimate.com/v1/badges/db34287dcd1f3ad965cc/maintainability)](https://codeclimate.com/github/koru3d/koru/maintainability)
-[![Test Coverage](https://api.codeclimate.com/v1/badges/db34287dcd1f3ad965cc/test_coverage)](https://codeclimate.com/github/koru3d/koru/test_coverage)
+[![Go Report Card](https://goreportcard.com/badge/github.com/devblok/koru)](https://goreportcard.com/report/github.com/devblok/koru)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/2a8868a10a3e307f1189/test_coverage)](https://codeclimate.com/github/devblok/koru/test_coverage)
 
 # Koru3D
 

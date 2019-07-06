@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/koru3d/koru/core"
+	"github.com/devblok/koru/core"
 )
 
 func main() {
