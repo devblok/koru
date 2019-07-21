@@ -414,167 +414,181 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
-	shaderStages, err := createPipelineShaderStagesInfo(shaders)
-	if err != nil {
-		return err
+	/* Shader stage create info */
+	var pipelineShaderStagesInfo []vk.PipelineShaderStageCreateInfo
+	for _, shader := range shaders {
+
+		var stage vk.ShaderStageFlagBits
+		switch shader.Type() {
+		case VertexShaderType:
+			stage = vk.ShaderStageVertexBit
+		case FragmentShaderType:
+			stage = vk.ShaderStageFragmentBit
+		default:
+			return errors.New("unsupported shader type attempted creation")
+		}
+
+		var shaderModule vk.ShaderModule
+		if sm, ok := shader.ShaderModule().(vk.ShaderModule); ok {
+			shaderModule = sm
+		} else {
+			return errors.New("failed to assert shader module to it's original type")
+		}
+
+		pssci := vk.PipelineShaderStageCreateInfo{
+			SType:  vk.StructureTypePipelineShaderStageCreateInfo,
+			Stage:  stage,
+			Module: shaderModule,
+			PName:  "main\x00",
+		}
+
+		pipelineShaderStagesInfo = append(pipelineShaderStagesInfo, pssci)
 	}
 
 	/* Viewport and scissors creation */
-	{
-		v.viewport = vk.Viewport{
-			X:        0,
-			Y:        0,
-			Width:    float32(v.configuration.ScreenWidth),
-			Height:   float32(v.configuration.ScreenHeight),
-			MinDepth: 0,
-			MaxDepth: 1,
-		}
-
-		v.scissor = vk.Rect2D{
-			Offset: vk.Offset2D{
-				X: 0,
-				Y: 0,
-			},
-			Extent: vk.Extent2D{
-				Width:  v.configuration.ScreenWidth,
-				Height: v.configuration.ScreenHeight,
-			},
-		}
+	viewport := vk.Viewport{
+		X:        0,
+		Y:        0,
+		Width:    float32(v.configuration.ScreenWidth),
+		Height:   float32(v.configuration.ScreenHeight),
+		MinDepth: 0,
+		MaxDepth: 1,
 	}
+
+	scissor := vk.Rect2D{
+		Offset: vk.Offset2D{
+			X: 0,
+			Y: 0,
+		},
+		Extent: vk.Extent2D{
+			Width:  v.configuration.ScreenWidth,
+			Height: v.configuration.ScreenHeight,
+		},
+	}
+	v.viewport = viewport
+	v.scissor = scissor
 
 	// TODO: Depth and stencil testing VkPipelineDepthStencilStateCreateInfo
 	// TODO: When making dynamic state changes refer to  VkPipelineDynamicStateCreateInfo
 	// Dynamic state in vulkan-tutorial.com
 
 	/* Pipeline Layout */
-	{
-		plci := vk.PipelineLayoutCreateInfo{
-			SType: vk.StructureTypePipelineLayoutCreateInfo,
-		}
-
-		var pipelineLayout vk.PipelineLayout
-		if err := vk.Error(vk.CreatePipelineLayout(v.logicalDevice, &plci, nil, &pipelineLayout)); err != nil {
-			return errors.New("vk.CreatePipelineLayout(): " + err.Error())
-		}
-		v.pipelineLayout = pipelineLayout
+	plci := vk.PipelineLayoutCreateInfo{
+		SType: vk.StructureTypePipelineLayoutCreateInfo,
 	}
+
+	var pipelineLayout vk.PipelineLayout
+	if err := vk.Error(vk.CreatePipelineLayout(v.logicalDevice, &plci, nil, &pipelineLayout)); err != nil {
+		return errors.New("vk.CreatePipelineLayout(): " + err.Error())
+	}
+	v.pipelineLayout = pipelineLayout
 
 	/* Render pass */
-	{
-		colorAttachment := vk.AttachmentDescription{
-			Format:         v.imageFormat,
-			Samples:        vk.SampleCount1Bit,
-			LoadOp:         vk.AttachmentLoadOpClear,
-			StoreOp:        vk.AttachmentStoreOpStore,
-			StencilStoreOp: vk.AttachmentStoreOpDontCare,
-			StencilLoadOp:  vk.AttachmentLoadOpDontCare,
-			InitialLayout:  vk.ImageLayoutUndefined,
-			FinalLayout:    vk.ImageLayoutPresentSrc,
-		}
-
-		colorAttachmentRef := []vk.AttachmentReference{{
-			Attachment: 0,
-			Layout:     vk.ImageLayoutColorAttachmentOptimal,
-		}}
-
-		subpass := vk.SubpassDescription{
-			PipelineBindPoint:    vk.PipelineBindPointGraphics,
-			ColorAttachmentCount: uint32(len(colorAttachmentRef)),
-			PColorAttachments:    colorAttachmentRef,
-		}
-
-		rpci := vk.RenderPassCreateInfo{
-			SType:           vk.StructureTypeRenderPassCreateInfo,
-			AttachmentCount: 1,
-			PAttachments:    []vk.AttachmentDescription{colorAttachment},
-			SubpassCount:    1,
-			PSubpasses:      []vk.SubpassDescription{subpass},
-		}
-
-		var renderPass vk.RenderPass
-		if err := vk.Error(vk.CreateRenderPass(v.logicalDevice, &rpci, nil, &renderPass)); err != nil {
-			return errors.New("vk.CreateRenderPass(): " + err.Error())
-		}
-		v.renderPass = renderPass
+	colorAttachment := vk.AttachmentDescription{
+		Format:         v.imageFormat,
+		Samples:        vk.SampleCount1Bit,
+		LoadOp:         vk.AttachmentLoadOpClear,
+		StoreOp:        vk.AttachmentStoreOpStore,
+		StencilStoreOp: vk.AttachmentStoreOpDontCare,
+		StencilLoadOp:  vk.AttachmentLoadOpDontCare,
+		InitialLayout:  vk.ImageLayoutUndefined,
+		FinalLayout:    vk.ImageLayoutPresentSrc,
 	}
+
+	colorAttachmentRef := []vk.AttachmentReference{{
+		Attachment: 0,
+		Layout:     vk.ImageLayoutColorAttachmentOptimal,
+	}}
+
+	subpass := vk.SubpassDescription{
+		PipelineBindPoint:    vk.PipelineBindPointGraphics,
+		ColorAttachmentCount: uint32(len(colorAttachmentRef)),
+		PColorAttachments:    colorAttachmentRef,
+	}
+
+	rpci := vk.RenderPassCreateInfo{
+		SType:           vk.StructureTypeRenderPassCreateInfo,
+		AttachmentCount: 1,
+		PAttachments:    []vk.AttachmentDescription{colorAttachment},
+		SubpassCount:    1,
+		PSubpasses:      []vk.SubpassDescription{subpass},
+	}
+
+	var renderPass vk.RenderPass
+	if err := vk.Error(vk.CreateRenderPass(v.logicalDevice, &rpci, nil, &renderPass)); err != nil {
+		return errors.New("vk.CreateRenderPass(): " + err.Error())
+	}
+	v.renderPass = renderPass
 
 	/* Pipeline */
-	{
-		pcbas := []vk.PipelineColorBlendAttachmentState{{
-			ColorWriteMask:      0xF, // ColorComponentFlagBits -> R | G | B | A
-			BlendEnable:         vk.False,
-			SrcColorBlendFactor: vk.BlendFactorOne,
-			DstColorBlendFactor: vk.BlendFactorZero,
-			ColorBlendOp:        vk.BlendOpAdd,
-			SrcAlphaBlendFactor: vk.BlendFactorOne,
-			DstAlphaBlendFactor: vk.BlendFactorZero,
-			AlphaBlendOp:        vk.BlendOpZero,
-		}}
+	pcbas := []vk.PipelineColorBlendAttachmentState{{
+		ColorWriteMask:      0xF, // ColorComponentFlagBits -> R | G | B | A
+		BlendEnable:         vk.False,
+		SrcColorBlendFactor: vk.BlendFactorOne,
+		DstColorBlendFactor: vk.BlendFactorZero,
+		ColorBlendOp:        vk.BlendOpAdd,
+		SrcAlphaBlendFactor: vk.BlendFactorOne,
+		DstAlphaBlendFactor: vk.BlendFactorZero,
+		AlphaBlendOp:        vk.BlendOpZero,
+	}}
 
-		gpci := []vk.GraphicsPipelineCreateInfo{{
-			SType:      vk.StructureTypeGraphicsPipelineCreateInfo,
-			StageCount: uint32(len(shaderStages)),
-			PStages:    shaderStages,
-			PVertexInputState: &vk.PipelineVertexInputStateCreateInfo{
-				SType: vk.StructureTypePipelineVertexInputStateCreateInfo,
-			},
-			PInputAssemblyState: &vk.PipelineInputAssemblyStateCreateInfo{
-				SType:                  vk.StructureTypePipelineInputAssemblyStateCreateInfo,
-				Topology:               vk.PrimitiveTopologyTriangleList,
-				PrimitiveRestartEnable: vk.False,
-			},
-			PViewportState: &vk.PipelineViewportStateCreateInfo{
-				SType:         vk.StructureTypePipelineViewportStateCreateInfo,
-				ViewportCount: 1,
-				PViewports:    []vk.Viewport{v.viewport},
-				ScissorCount:  1,
-				PScissors:     []vk.Rect2D{v.scissor},
-			},
-			PRasterizationState: &vk.PipelineRasterizationStateCreateInfo{
-				SType:                   vk.StructureTypePipelineRasterizationStateCreateInfo,
-				DepthClampEnable:        vk.False,
-				RasterizerDiscardEnable: vk.False,
-				PolygonMode:             vk.PolygonModeFill,
-				LineWidth:               1.0,
-				CullMode:                vk.CullModeFlags(vk.CullModeBackBit),
-				FrontFace:               vk.FrontFaceClockwise,
-			},
-			PMultisampleState: &vk.PipelineMultisampleStateCreateInfo{
-				SType:                vk.StructureTypePipelineMultisampleStateCreateInfo,
-				RasterizationSamples: vk.SampleCount1Bit,
-			},
-			PDepthStencilState: nil,
-			PColorBlendState: &vk.PipelineColorBlendStateCreateInfo{
-				SType:           vk.StructureTypePipelineColorBlendStateCreateInfo,
-				LogicOpEnable:   vk.False,
-				LogicOp:         vk.LogicOpCopy,
-				AttachmentCount: uint32(len(pcbas)),
-				PAttachments:    pcbas,
-				BlendConstants:  [4]float32{0.0, 0.0, 0.0, 0.0},
-			},
-			PDynamicState:      nil,
-			Layout:             v.pipelineLayout,
-			RenderPass:         v.renderPass,
-			Subpass:            0,
-			BasePipelineIndex:  -1,
-			BasePipelineHandle: nil,
-		}}
+	gpci := []vk.GraphicsPipelineCreateInfo{{
+		SType:      vk.StructureTypeGraphicsPipelineCreateInfo,
+		StageCount: uint32(len(pipelineShaderStagesInfo)),
+		PStages:    pipelineShaderStagesInfo,
+		PVertexInputState: &vk.PipelineVertexInputStateCreateInfo{
+			SType: vk.StructureTypePipelineVertexInputStateCreateInfo,
+		},
+		PInputAssemblyState: &vk.PipelineInputAssemblyStateCreateInfo{
+			SType:                  vk.StructureTypePipelineInputAssemblyStateCreateInfo,
+			Topology:               vk.PrimitiveTopologyTriangleList,
+			PrimitiveRestartEnable: vk.False,
+		},
+		PViewportState: &vk.PipelineViewportStateCreateInfo{
+			SType:         vk.StructureTypePipelineViewportStateCreateInfo,
+			ViewportCount: 1,
+			PViewports:    []vk.Viewport{viewport},
+			ScissorCount:  1,
+			PScissors:     []vk.Rect2D{scissor},
+		},
+		PRasterizationState: &vk.PipelineRasterizationStateCreateInfo{
+			SType:                   vk.StructureTypePipelineRasterizationStateCreateInfo,
+			DepthClampEnable:        vk.False,
+			RasterizerDiscardEnable: vk.False,
+			PolygonMode:             vk.PolygonModeFill,
+			LineWidth:               1.0,
+			CullMode:                vk.CullModeFlags(vk.CullModeBackBit),
+			FrontFace:               vk.FrontFaceClockwise,
+		},
+		PMultisampleState: &vk.PipelineMultisampleStateCreateInfo{
+			SType:                vk.StructureTypePipelineMultisampleStateCreateInfo,
+			RasterizationSamples: vk.SampleCount1Bit,
+		},
+		PColorBlendState: &vk.PipelineColorBlendStateCreateInfo{
+			SType:           vk.StructureTypePipelineColorBlendStateCreateInfo,
+			LogicOpEnable:   vk.False,
+			LogicOp:         vk.LogicOpCopy,
+			AttachmentCount: uint32(len(pcbas)),
+			PAttachments:    pcbas,
+		},
+		Layout:     pipelineLayout,
+		RenderPass: renderPass,
+	}}
 
-		pcci := vk.PipelineCacheCreateInfo{
-			SType: vk.StructureTypePipelineCacheCreateInfo,
-		}
-
-		var pipelineCache vk.PipelineCache
-		if err := vk.Error(vk.CreatePipelineCache(v.logicalDevice, &pcci, nil, &pipelineCache)); err != nil {
-			return errors.New("vk.CreatePipelineCache(): " + err.Error())
-		}
-
-		pipelines := make([]vk.Pipeline, len(gpci))
-		if err := vk.Error(vk.CreateGraphicsPipelines(v.logicalDevice, pipelineCache, uint32(len(gpci)), gpci, nil, pipelines)); err != nil {
-			return errors.New("vk.CreateGraphicsPipelines(): " + err.Error())
-		}
-		v.pipeline = pipelines[0]
+	pcci := vk.PipelineCacheCreateInfo{
+		SType: vk.StructureTypePipelineCacheCreateInfo,
 	}
+
+	var pipelineCache vk.PipelineCache
+	if err := vk.Error(vk.CreatePipelineCache(v.logicalDevice, &pcci, nil, &pipelineCache)); err != nil {
+		return errors.New("vk.CreatePipelineCache(): " + err.Error())
+	}
+
+	pipelines := make([]vk.Pipeline, len(gpci))
+	if err := vk.Error(vk.CreateGraphicsPipelines(v.logicalDevice, pipelineCache, uint32(len(gpci)), gpci, nil, pipelines)); err != nil {
+		return errors.New("vk.CreateGraphicsPipelines(): " + err.Error())
+	}
+	v.pipeline = pipelines[0]
 
 	return nil
 }
@@ -628,40 +642,6 @@ func loadShaders(logicalDevice vk.Device, shaderDir string) ([]Shader, error) {
 	return shaders, nil
 }
 
-func createPipelineShaderStagesInfo(shaders []Shader) ([]vk.PipelineShaderStageCreateInfo, error) {
-	var pipelineShaderStagesInfo []vk.PipelineShaderStageCreateInfo
-	for _, shader := range shaders {
-
-		var stage vk.ShaderStageFlagBits
-		switch shader.Type() {
-		case VertexShaderType:
-			stage = vk.ShaderStageFragmentBit
-		case FragmentShaderType:
-			stage = vk.ShaderStageVertexBit
-		default:
-			return nil, errors.New("unsupported shader type attempted creation")
-		}
-
-		var shaderModule vk.ShaderModule
-		if sm, ok := shader.ShaderModule().(vk.ShaderModule); ok {
-			shaderModule = sm
-		} else {
-			return nil, errors.New("failed to assert shader module to it's original type")
-		}
-
-		pssci := vk.PipelineShaderStageCreateInfo{
-			SType:  vk.StructureTypePipelineShaderStageCreateInfo,
-			Stage:  stage,
-			Module: shaderModule,
-			PName:  "main\x00",
-		}
-
-		pipelineShaderStagesInfo = append(pipelineShaderStagesInfo, pssci)
-	}
-
-	return pipelineShaderStagesInfo, nil
-}
-
 // DeviceIsSuitable implements interface
 func (v VulkanRenderer) DeviceIsSuitable(device vk.PhysicalDevice) (bool, string) {
 	// TODO: Add device suitability checking
@@ -709,10 +689,12 @@ func NewVulkanShader(path string, shaderType ShaderType, device vk.Device) (Shad
 	}
 
 	return &VulkanShader{
-		shader:     shader,
-		shaderType: shaderType,
-		name:       shaderName,
-		device:     device,
+		shader:           shader,
+		shaderType:       shaderType,
+		shaderContents:   shaderContents,
+		shaderCreateInfo: smci,
+		name:             shaderName,
+		device:           device,
 	}, nil
 }
 
@@ -721,10 +703,13 @@ type VulkanShader struct {
 	Destroyable
 	Shader
 
-	name       string
-	shaderType ShaderType
-	device     vk.Device
-	shader     vk.ShaderModule
+	name             string
+	shaderType       ShaderType
+	device           vk.Device
+	shader           vk.ShaderModule
+	shaderContents   []byte
+	slicedContents   []uint32
+	shaderCreateInfo vk.ShaderModuleCreateInfo
 }
 
 // Type implements interface
