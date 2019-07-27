@@ -1,6 +1,7 @@
 BINARY_FOLDER := bin
 OS := $(shell uname -s)
-FLAGS := -compiler gccgo -gccgoflags "-Os -O2"
+#FLAGS := -compiler gccgo -gccgoflags "-Os -O2"
+FLAGS := ""
 
 all: build-all
 build-all: ${OS} ${BINARY_FOLDER}/koru ${BINARY_FOLDER}/korucli ${BINARY_FOLDER}/korued
