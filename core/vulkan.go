@@ -212,22 +212,36 @@ type VulkanRenderer struct {
 
 	configuration RendererConfiguration
 
-	surface             vk.Surface
-	swapchain           vk.Swapchain
-	swapchainImages     []vk.Image
-	logicalDevice       vk.Device
-	physicalDevice      vk.PhysicalDevice
-	imageFormat         vk.Format
-	imageColorspace     vk.ColorSpace
-	imageViews          []vk.ImageView
-	viewport            vk.Viewport
-	scissor             vk.Rect2D
-	pipelineLayout      vk.PipelineLayout
+	surface vk.Surface
+
+	swapchain       vk.Swapchain
+	swapchainImages []vk.Image
+
+	logicalDevice  vk.Device
+	physicalDevice vk.PhysicalDevice
+
+	imageFormat     vk.Format
+	imageColorspace vk.ColorSpace
+	imageViews      []vk.ImageView
+
+	viewport vk.Viewport
+	scissor  vk.Rect2D
+
+	pipelineLayout vk.PipelineLayout
+	pipeline       vk.Pipeline
+	pipelineCache  vk.PipelineCache
+
 	descriptorSetLayout vk.DescriptorSetLayout
+	descriptorPool      vk.DescriptorPool
 	renderPass          vk.RenderPass
-	pipeline            vk.Pipeline
-	currentQueueIndex   uint32
-	graphicsQueueIndex  uint32
+
+	depthImage       vk.Image
+	depthImageView   vk.ImageView
+	depthImageFormat vk.Format
+	depthImageMemory vk.DeviceMemory
+
+	currentQueueIndex  uint32
+	graphicsQueueIndex uint32
 }
 
 // Initialise implements interface
@@ -363,10 +377,10 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
-	/* Uniform buffers */
-	if err := v.prepareUniformBuffers(); err != nil {
-		return err
-	}
+	// /* Uniform buffers */
+	// if err := v.prepareUniformBuffers(); err != nil {
+	// 	return err
+	// }
 
 	/* Pipeline Layout */
 	if err := v.createPipelineLayout(); err != nil {
@@ -397,6 +411,14 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
+	// if err := v.prepareDescriptorPool(); err != nil {
+	// 	return err
+	// }
+
+	// if err := v.prepareDescriptorSet(); err != nil {
+	// 	return err
+	// }
+
 	return nil
 }
 
@@ -422,6 +444,33 @@ func (v *VulkanRenderer) createViewport() {
 	}
 	v.viewport = viewport
 	v.scissor = scissor
+}
+
+func (v *VulkanRenderer) prepareDescriptorPool() error {
+	dpci := vk.DescriptorPoolCreateInfo{
+		SType:         vk.StructureTypeDescriptorPoolCreateInfo,
+		MaxSets:       uint32(len(v.swapchainImages)),
+		PoolSizeCount: 2,
+		PPoolSizes: []vk.DescriptorPoolSize{{
+			Type:            vk.DescriptorTypeUniformBuffer,
+			DescriptorCount: uint32(len(v.swapchainImages)),
+		}, {
+			Type:            vk.DescriptorTypeCombinedImageSampler,
+			DescriptorCount: uint32(len(v.swapchainImages)),
+		}},
+	}
+
+	var descriptorPool vk.DescriptorPool
+	if err := vk.Error(vk.CreateDescriptorPool(v.logicalDevice, &dpci, nil, &descriptorPool)); err != nil {
+		return err
+	}
+	v.descriptorPool = descriptorPool
+
+	return nil
+}
+
+func (v *VulkanRenderer) prepareDescriptorSet() error {
+	return nil
 }
 
 func (v *VulkanRenderer) prepareDepthImage() error {
@@ -488,6 +537,11 @@ func (v *VulkanRenderer) prepareDepthImage() error {
 	if err := vk.Error(vk.CreateImageView(v.logicalDevice, &ivci, nil, &view)); err != nil {
 		return err
 	}
+
+	v.depthImage = image
+	v.depthImageView = view
+	v.depthImageMemory = memory
+	v.depthImageFormat = depthFormat
 
 	return nil
 }
@@ -579,17 +633,6 @@ func (v *VulkanRenderer) createPipeline(shaders []Shader) error {
 		pipelineShaderStagesInfo[idx].PName = "main\x00"
 	}
 
-	// pcbas := []vk.PipelineColorBlendAttachmentState{{
-	// 	ColorWriteMask:      0xF, // ColorComponentFlagBits -> R | G | B | A
-	// 	BlendEnable:         vk.False,
-	// 	SrcColorBlendFactor: vk.BlendFactorOne,
-	// 	DstColorBlendFactor: vk.BlendFactorZero,
-	// 	ColorBlendOp:        vk.BlendOpAdd,
-	// 	SrcAlphaBlendFactor: vk.BlendFactorOne,
-	// 	DstAlphaBlendFactor: vk.BlendFactorZero,
-	// 	AlphaBlendOp:        vk.BlendOpZero,
-	// }}
-
 	gpci := []vk.GraphicsPipelineCreateInfo{{
 		SType:      vk.StructureTypeGraphicsPipelineCreateInfo,
 		StageCount: uint32(len(pipelineShaderStagesInfo)),
@@ -663,6 +706,7 @@ func (v *VulkanRenderer) createPipeline(shaders []Shader) error {
 	if err := vk.Error(vk.CreatePipelineCache(v.logicalDevice, &pcci, nil, &pipelineCache)); err != nil {
 		return errors.New("vk.CreatePipelineCache(): " + err.Error())
 	}
+	v.pipelineCache = pipelineCache
 
 	pipelines := make([]vk.Pipeline, len(gpci))
 	if err := vk.Error(vk.CreateGraphicsPipelines(v.logicalDevice, pipelineCache, uint32(len(gpci)), gpci, nil, pipelines)); err != nil {
@@ -818,7 +862,7 @@ func (v *VulkanRenderer) createRenderPass() error {
 	return nil
 }
 
-func (v VulkanRenderer) createImageViews() error {
+func (v *VulkanRenderer) createImageViews() error {
 	for idx := 0; idx < len(v.swapchainImages); idx++ {
 		var imageView vk.ImageView
 		ivci := vk.ImageViewCreateInfo{
@@ -874,14 +918,22 @@ func (v VulkanRenderer) DeviceIsSuitable(device vk.PhysicalDevice) (bool, string
 }
 
 // Destroy implements interface
-func (v VulkanRenderer) Destroy() {
-	vk.DestroyPipeline(v.logicalDevice, v.pipeline, nil)
-	vk.DestroyRenderPass(v.logicalDevice, v.renderPass, nil)
-	vk.DestroyPipelineLayout(v.logicalDevice, v.pipelineLayout, nil)
-
+func (v *VulkanRenderer) Destroy() {
 	for _, i := range v.imageViews {
 		vk.DestroyImageView(v.logicalDevice, i, nil)
 	}
+
+	vk.DestroyDescriptorPool(v.logicalDevice, v.descriptorPool, nil)
+	vk.DestroyDescriptorSetLayout(v.logicalDevice, v.descriptorSetLayout, nil)
+
+	vk.DestroyPipeline(v.logicalDevice, v.pipeline, nil)
+	vk.DestroyPipelineCache(v.logicalDevice, v.pipelineCache, nil)
+	vk.DestroyRenderPass(v.logicalDevice, v.renderPass, nil)
+	vk.DestroyPipelineLayout(v.logicalDevice, v.pipelineLayout, nil)
+
+	vk.FreeMemory(v.logicalDevice, v.depthImageMemory, nil)
+	vk.DestroyImageView(v.logicalDevice, v.depthImageView, nil)
+	vk.DestroyImage(v.logicalDevice, v.depthImage, nil)
 
 	vk.DestroySwapchain(v.logicalDevice, v.swapchain, nil)
 	vk.DestroyDevice(v.logicalDevice, nil)
