@@ -48,6 +48,12 @@ type Renderer interface {
 	// Initialise sets up the configured rendering pipeline
 	Initialise() error
 
+	// Draw draws the frame
+	Draw() error
+
+	// Present submits current frame for display
+	Present() error
+
 	// DeviceIsSuitable checks if the device given is suitable
 	// for the rendering pipeline. If not suitable string contains the reason
 	DeviceIsSuitable(vk.PhysicalDevice) (bool, string)

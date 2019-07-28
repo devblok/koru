@@ -121,6 +121,9 @@ EventLoop:
 					continue EventLoop
 				}
 			}
+			if err := vkRenderer.Draw(); err != nil {
+				log.Println("Draw error: " + err.Error())
+			}
 		}
 	}
 

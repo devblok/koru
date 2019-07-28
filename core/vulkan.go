@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"strings"
 	"unsafe"
 
@@ -214,15 +215,18 @@ type VulkanRenderer struct {
 
 	surface vk.Surface
 
-	swapchain       vk.Swapchain
-	swapchainImages []vk.Image
+	swapchain            vk.Swapchain
+	swapchainImages      []vk.Image
+	swapchainImageViews  []vk.ImageView
+	swapchainAttachments []vk.AttachmentDescription
+	framebuffers         []vk.Framebuffer
 
 	logicalDevice  vk.Device
 	physicalDevice vk.PhysicalDevice
+	deviceQueue    vk.Queue
 
 	imageFormat     vk.Format
 	imageColorspace vk.ColorSpace
-	imageViews      []vk.ImageView
 
 	viewport vk.Viewport
 	scissor  vk.Rect2D
@@ -239,6 +243,13 @@ type VulkanRenderer struct {
 	depthImageView   vk.ImageView
 	depthImageFormat vk.Format
 	depthImageMemory vk.DeviceMemory
+
+	commandPool    vk.CommandPool
+	commandBuffers []vk.CommandBuffer
+
+	renderFinishedSemphore  vk.Semaphore
+	imageAvailableSemaphore vk.Semaphore
+	imageIndex              uint32
 
 	currentQueueIndex  uint32
 	graphicsQueueIndex uint32
@@ -328,6 +339,11 @@ func (v *VulkanRenderer) Initialise() error {
 	if err := vk.Error(vk.CreateDevice(v.physicalDevice, &dci, nil, &vkDevice)); err != nil {
 		return errors.New("vk.CreateDevice(): " + err.Error())
 	}
+
+	var deviceQueue vk.Queue
+	vk.GetDeviceQueue(vkDevice, v.graphicsQueueIndex, 0, &deviceQueue)
+
+	v.deviceQueue = deviceQueue
 	v.logicalDevice = vkDevice
 
 	/* ImageFormat */
@@ -419,6 +435,116 @@ func (v *VulkanRenderer) Initialise() error {
 	// 	return err
 	// }
 
+	if err := v.createFramebuffers(); err != nil {
+		return err
+	}
+
+	if err := v.createCommandPool(); err != nil {
+		return err
+	}
+
+	if err := v.allocateCommandBuffers(); err != nil {
+		return err
+	}
+
+	if err := v.createSynchronization(); err != nil {
+		return err
+	}
+
+	/* Fill in command buffers */
+	if err := v.buildCommandBuffers(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (v *VulkanRenderer) buildCommandBuffers() error {
+	for idx, commandBuffer := range v.commandBuffers {
+		cbbi := vk.CommandBufferBeginInfo{
+			SType: vk.StructureTypeCommandBufferBeginInfo,
+			Flags: vk.CommandBufferUsageFlags(vk.CommandBufferUsageSimultaneousUseBit),
+		}
+		if err := vk.Error(vk.BeginCommandBuffer(commandBuffer, &cbbi)); err != nil {
+			return fmt.Errorf("vk.BeginCommandBuffer()[%d]: %s", idx, err.Error())
+		}
+
+		clearValues := make([]vk.ClearValue, 2)
+		clearValues[1].SetDepthStencil(1, 0)
+		clearValues[0].SetColor([]float32{
+			0.05, 0.05, 0.05, 0.05,
+		})
+
+		rpbi := vk.RenderPassBeginInfo{
+			SType:       vk.StructureTypeRenderPassBeginInfo,
+			RenderPass:  v.renderPass,
+			Framebuffer: v.framebuffers[idx],
+			RenderArea: vk.Rect2D{
+				Offset: vk.Offset2D{
+					X: 0, Y: 0,
+				},
+				Extent: vk.Extent2D{
+					Width:  v.configuration.ScreenWidth,
+					Height: v.configuration.ScreenHeight,
+				},
+			},
+			ClearValueCount: 2,
+			PClearValues:    clearValues,
+		}
+		vk.CmdBeginRenderPass(commandBuffer, &rpbi, vk.SubpassContentsInline)
+		vk.CmdBindPipeline(commandBuffer, vk.PipelineBindPointGraphics, v.pipeline)
+		vk.CmdSetViewport(commandBuffer, 0, 1, []vk.Viewport{v.viewport})
+		vk.CmdSetScissor(commandBuffer, 0, 1, []vk.Rect2D{v.scissor})
+		vk.CmdDraw(commandBuffer, 3, 1, 0, 0)
+		vk.CmdEndRenderPass(commandBuffer)
+
+		if err := vk.Error(vk.EndCommandBuffer(commandBuffer)); err != nil {
+			return fmt.Errorf("vk.EndCommandBuffer()[%d]: %s", idx, err.Error())
+		}
+	}
+	return nil
+}
+
+// Draw implements interface
+func (v *VulkanRenderer) Draw() error {
+	vk.AcquireNextImage(v.logicalDevice, v.swapchain, math.MaxUint64, v.imageAvailableSemaphore, nil, &v.imageIndex)
+
+	submit := []vk.SubmitInfo{{
+		SType:              vk.StructureTypeSubmitInfo,
+		WaitSemaphoreCount: 1,
+		PWaitSemaphores:    []vk.Semaphore{v.imageAvailableSemaphore},
+		PWaitDstStageMask: []vk.PipelineStageFlags{
+			vk.PipelineStageFlags(vk.PipelineStageColorAttachmentOutputBit),
+		},
+		CommandBufferCount:   1,
+		PCommandBuffers:      []vk.CommandBuffer{v.commandBuffers[v.imageIndex]},
+		SignalSemaphoreCount: 1,
+		PSignalSemaphores:    []vk.Semaphore{v.renderFinishedSemphore},
+	}}
+
+	if err := vk.Error(vk.QueueSubmit(v.deviceQueue, 1, submit, nil)); err != nil {
+		return err
+	}
+
+	swapchains := []vk.Swapchain{v.swapchain}
+	presentInfo := vk.PresentInfo{
+		SType:              vk.StructureTypePresentInfo,
+		WaitSemaphoreCount: 1,
+		PWaitSemaphores:    []vk.Semaphore{v.renderFinishedSemphore},
+		SwapchainCount:     1,
+		PSwapchains:        swapchains,
+		PImageIndices:      []uint32{v.imageIndex},
+	}
+
+	if err := vk.Error(vk.QueuePresent(v.deviceQueue, &presentInfo)); err != nil {
+		return errors.New("vk.QueuePresent(): " + err.Error())
+	}
+
+	return nil
+}
+
+// Present implements interface
+func (v *VulkanRenderer) Present() error {
 	return nil
 }
 
@@ -546,6 +672,61 @@ func (v *VulkanRenderer) prepareDepthImage() error {
 	return nil
 }
 
+func (v *VulkanRenderer) createSynchronization() error {
+	sci := vk.SemaphoreCreateInfo{
+		SType: vk.StructureTypeSemaphoreCreateInfo,
+	}
+
+	var (
+		imageAvailableSemaphore vk.Semaphore
+		renderFinishedSemphore  vk.Semaphore
+	)
+	if err := vk.Error(vk.CreateSemaphore(v.logicalDevice, &sci, nil, &imageAvailableSemaphore)); err != nil {
+		return err
+	}
+	if err := vk.Error(vk.CreateSemaphore(v.logicalDevice, &sci, nil, &renderFinishedSemphore)); err != nil {
+		return err
+	}
+
+	v.imageAvailableSemaphore = imageAvailableSemaphore
+	v.renderFinishedSemphore = renderFinishedSemphore
+
+	return nil
+}
+
+func (v *VulkanRenderer) createCommandPool() error {
+	cpci := vk.CommandPoolCreateInfo{
+		SType:            vk.StructureTypeCommandPoolCreateInfo,
+		QueueFamilyIndex: v.graphicsQueueIndex,
+	}
+
+	var commandPool vk.CommandPool
+	if err := vk.Error(vk.CreateCommandPool(v.logicalDevice, &cpci, nil, &commandPool)); err != nil {
+		return errors.New("vk.CreateCommandPool(): " + err.Error())
+	}
+	v.commandPool = commandPool
+
+	return nil
+}
+
+func (v *VulkanRenderer) allocateCommandBuffers() error {
+
+	cbai := vk.CommandBufferAllocateInfo{
+		SType:              vk.StructureTypeCommandBufferAllocateInfo,
+		CommandPool:        v.commandPool,
+		Level:              vk.CommandBufferLevelPrimary,
+		CommandBufferCount: uint32(len(v.swapchainImageViews)),
+	}
+
+	commandBuffers := make([]vk.CommandBuffer, len(v.swapchainImageViews))
+	if err := vk.Error(vk.AllocateCommandBuffers(v.logicalDevice, &cbai, commandBuffers)); err != nil {
+		return errors.New("vk.AllocateCommandBuffers(): " + err.Error())
+	}
+	v.commandBuffers = commandBuffers
+
+	return nil
+}
+
 func (v *VulkanRenderer) prepareUniformBuffers() error {
 	// vk.CreateBuffer
 	// vk.AllocateMemory
@@ -586,6 +767,31 @@ func (v *VulkanRenderer) prepareUniformBuffers() error {
 		return err
 	}
 
+	return nil
+}
+
+func (v *VulkanRenderer) createFramebuffers() error {
+	for _, image := range v.swapchainImageViews {
+		attachments := []vk.ImageView{
+			image,
+			v.depthImageView,
+		}
+		fci := vk.FramebufferCreateInfo{
+			SType:           vk.StructureTypeFramebufferCreateInfo,
+			RenderPass:      v.renderPass,
+			AttachmentCount: uint32(len(attachments)),
+			PAttachments:    attachments,
+			Width:           v.configuration.ScreenWidth,
+			Height:          v.configuration.ScreenHeight,
+			Layers:          1,
+		}
+
+		var framebuffer vk.Framebuffer
+		if err := vk.Error(vk.CreateFramebuffer(v.logicalDevice, &fci, nil, &framebuffer)); err != nil {
+			return err
+		}
+		v.framebuffers = append(v.framebuffers, framebuffer)
+	}
 	return nil
 }
 
@@ -813,32 +1019,42 @@ func (v *VulkanRenderer) createPipelineLayout() error {
 }
 
 func (v *VulkanRenderer) createRenderPass() error {
-	colorAttachment := vk.AttachmentDescription{
-		Format:         v.imageFormat,
-		Samples:        vk.SampleCount1Bit,
-		LoadOp:         vk.AttachmentLoadOpClear,
-		StoreOp:        vk.AttachmentStoreOpStore,
-		StencilStoreOp: vk.AttachmentStoreOpDontCare,
-		StencilLoadOp:  vk.AttachmentLoadOpDontCare,
-		InitialLayout:  vk.ImageLayoutUndefined,
-		FinalLayout:    vk.ImageLayoutPresentSrc,
-	}
-
-	depthAttachment := vk.AttachmentDescription{
-		Format:         vk.FormatD16Unorm,
-		Samples:        vk.SampleCount1Bit,
-		LoadOp:         vk.AttachmentLoadOpClear,
-		StoreOp:        vk.AttachmentStoreOpDontCare,
-		StencilLoadOp:  vk.AttachmentLoadOpDontCare,
-		StencilStoreOp: vk.AttachmentStoreOpDontCare,
-		InitialLayout:  vk.ImageLayoutUndefined,
-		FinalLayout:    vk.ImageLayoutDepthStencilAttachmentOptimal,
+	swapchainAttachments := []vk.AttachmentDescription{
+		vk.AttachmentDescription{
+			Format:         v.imageFormat,
+			Samples:        vk.SampleCount1Bit,
+			LoadOp:         vk.AttachmentLoadOpClear,
+			StoreOp:        vk.AttachmentStoreOpStore,
+			StencilStoreOp: vk.AttachmentStoreOpDontCare,
+			StencilLoadOp:  vk.AttachmentLoadOpDontCare,
+			InitialLayout:  vk.ImageLayoutUndefined,
+			FinalLayout:    vk.ImageLayoutPresentSrc,
+		},
+		vk.AttachmentDescription{
+			Format:         vk.FormatD16Unorm,
+			Samples:        vk.SampleCount1Bit,
+			LoadOp:         vk.AttachmentLoadOpClear,
+			StoreOp:        vk.AttachmentStoreOpDontCare,
+			StencilLoadOp:  vk.AttachmentLoadOpDontCare,
+			StencilStoreOp: vk.AttachmentStoreOpDontCare,
+			InitialLayout:  vk.ImageLayoutUndefined,
+			FinalLayout:    vk.ImageLayoutDepthStencilAttachmentOptimal,
+		},
 	}
 
 	colorAttachmentRef := []vk.AttachmentReference{{
 		Attachment: 0,
 		Layout:     vk.ImageLayoutColorAttachmentOptimal,
 	}}
+
+	subpassDependency := vk.SubpassDependency{
+		SrcSubpass:    vk.SubpassExternal,
+		DstSubpass:    0,
+		SrcStageMask:  vk.PipelineStageFlags(vk.PipelineStageColorAttachmentOutputBit),
+		SrcAccessMask: 0,
+		DstStageMask:  vk.PipelineStageFlags(vk.PipelineStageColorAttachmentOutputBit),
+		DstAccessMask: vk.AccessFlags(vk.AccessColorAttachmentReadBit | vk.AccessColorAttachmentWriteBit),
+	}
 
 	subpass := vk.SubpassDescription{
 		PipelineBindPoint:    vk.PipelineBindPointGraphics,
@@ -848,10 +1064,12 @@ func (v *VulkanRenderer) createRenderPass() error {
 
 	rpci := vk.RenderPassCreateInfo{
 		SType:           vk.StructureTypeRenderPassCreateInfo,
-		AttachmentCount: 2,
-		PAttachments:    []vk.AttachmentDescription{colorAttachment, depthAttachment},
+		AttachmentCount: uint32(len(swapchainAttachments)),
+		PAttachments:    swapchainAttachments,
 		SubpassCount:    1,
 		PSubpasses:      []vk.SubpassDescription{subpass},
+		DependencyCount: 1,
+		PDependencies:   []vk.SubpassDependency{subpassDependency},
 	}
 
 	var renderPass vk.RenderPass
@@ -859,6 +1077,7 @@ func (v *VulkanRenderer) createRenderPass() error {
 		return errors.New("vk.CreateRenderPass(): " + err.Error())
 	}
 	v.renderPass = renderPass
+	v.swapchainAttachments = swapchainAttachments
 	return nil
 }
 
@@ -889,7 +1108,7 @@ func (v *VulkanRenderer) createImageViews() error {
 			return errors.New("with index " + string(idx) + "vk.CreateImageView(): " + err.Error())
 		}
 
-		v.imageViews = append(v.imageViews, imageView)
+		v.swapchainImageViews = append(v.swapchainImageViews, imageView)
 	}
 	return nil
 }
@@ -919,7 +1138,18 @@ func (v VulkanRenderer) DeviceIsSuitable(device vk.PhysicalDevice) (bool, string
 
 // Destroy implements interface
 func (v *VulkanRenderer) Destroy() {
-	for _, i := range v.imageViews {
+	vk.DeviceWaitIdle(v.logicalDevice)
+
+	vk.DestroySemaphore(v.logicalDevice, v.imageAvailableSemaphore, nil)
+	vk.DestroySemaphore(v.logicalDevice, v.renderFinishedSemphore, nil)
+
+	vk.DestroyCommandPool(v.logicalDevice, v.commandPool, nil)
+
+	for _, f := range v.framebuffers {
+		vk.DestroyFramebuffer(v.logicalDevice, f, nil)
+	}
+
+	for _, i := range v.swapchainImageViews {
 		vk.DestroyImageView(v.logicalDevice, i, nil)
 	}
 
