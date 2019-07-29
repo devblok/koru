@@ -39,6 +39,18 @@ type Instance interface {
 	Extensions() []string
 }
 
+// PhysicalDeviceInfo describes available physical properties of a rendering device
+type PhysicalDeviceInfo struct {
+	ID            int
+	VendorID      int
+	DriverVersion int
+	Name          string
+	Invalid       bool
+	Extensions    []string
+	Layers        []string
+	Memory        uint
+}
+
 // Renderer describes the rendering machinery.
 // It's created only with internal values set,
 // it needs to be initialised with Initialise() before use.

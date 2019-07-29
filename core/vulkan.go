@@ -20,19 +20,6 @@ var DefaultVulkanApplicationInfo = &vk.ApplicationInfo{
 	PEngineName:        "Koru3D\x00",
 }
 
-// PhysicalDeviceInfo describes available physical properties of a rendering device
-type PhysicalDeviceInfo struct {
-	ID            int
-	VendorID      int
-	DriverVersion int
-	Name          string
-	Invalid       bool
-	Extensions    []string
-	Layers        []string
-	Memory        vk.DeviceSize
-	Features      vk.PhysicalDeviceFeatures
-}
-
 // NewVulkanInstance creates a Vulkan instance
 func NewVulkanInstance(appInfo *vk.ApplicationInfo, window unsafe.Pointer, cfg InstanceConfiguration) (Instance, error) {
 	if cfg.DebugMode {
@@ -107,14 +94,7 @@ func enumerateDevices(instance vk.Instance) ([]vk.PhysicalDevice, error) {
 // PhysicalDevicesInfo implements interface
 func (v VulkanInstance) PhysicalDevicesInfo() []PhysicalDeviceInfo {
 	pdi := make([]PhysicalDeviceInfo, len(v.availableDevices))
-	for i := range pdi {
-		pdi[i].Invalid = false
-	}
-
 	for i := 0; i < len(v.availableDevices); i++ {
-		// Get device features
-		vk.GetPhysicalDeviceFeatures(v.availableDevices[i], &pdi[i].Features)
-
 		// Get extension info
 		var numDeviceExtensions uint32
 		if err := vk.Error(vk.EnumerateDeviceExtensionProperties(v.availableDevices[i], "", &numDeviceExtensions, nil)); err != nil {
@@ -148,7 +128,8 @@ func (v VulkanInstance) PhysicalDevicesInfo() []PhysicalDeviceInfo {
 		vk.GetPhysicalDeviceMemoryProperties(v.availableDevices[i], &memoryProperties)
 		memoryProperties.Deref()
 		for iMem := (uint32)(0); iMem < memoryProperties.MemoryHeapCount; iMem++ {
-			pdi[i].Memory = pdi[i].Memory + memoryProperties.MemoryHeaps[iMem].Size
+			memoryProperties.MemoryHeaps[iMem].Deref()
+			pdi[i].Memory = pdi[i].Memory + uint(memoryProperties.MemoryHeaps[iMem].Size)
 		}
 
 		// Get general device info

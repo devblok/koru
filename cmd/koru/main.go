@@ -43,11 +43,14 @@ func newWindow() *sdl.Window {
 		sdl.WINDOWPOS_UNDEFINED,
 		int32(configuration.Renderer.ScreenWidth),
 		int32(configuration.Renderer.ScreenHeight),
-		sdl.WINDOW_VULKAN)
+		sdl.WINDOW_VULKAN|sdl.WINDOW_RESIZABLE)
 	if err != nil {
 		panic(err)
 	}
 	return window
+}
+
+func handleWindowEvent(event *sdl.WindowEvent) {
 }
 
 func main() {
@@ -111,6 +114,9 @@ EventLoop:
 			var event sdl.Event
 			for event = sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 				switch et := event.(type) {
+				case *sdl.WindowEvent:
+					handleWindowEvent(et)
+					log.Println("Window event caught")
 				case *sdl.KeyboardEvent:
 					if et.Keysym.Sym == sdl.K_ESCAPE {
 						exitC <- struct{}{}
