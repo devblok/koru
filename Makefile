@@ -6,9 +6,9 @@ FLAGS := ""
 all: build-all
 build-all: ${OS} koru korucli korued
 	@echo Built everything
-koru: ${BINARY_FOLDER}/koru
-korucli: ${BINARY_FOLDER}/korucli
-korued: ${BINARY_FOLDER}/korued
+${BINARY_FOLDER}/koru: koru
+${BINARY_FOLDER}/korucli: korucli
+${BINARY_FOLDER}/korued: korued
 ${BINARY_FOLDER}:
 	@echo Create binary folder
 	mkdir -p ${BINARY_FOLDER}
@@ -19,15 +19,15 @@ vendor:
 	@echo Installing dependencies
 	dep ensure
 	make fix-vulkan
-${BINARY_FOLDER}/koru: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
+koru: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@echo Compiling koru
 	cd ./cmd/koru && \
 	go build -tags=vulkan -o ../../${BINARY_FOLDER}/koru ${FLAGS}
-${BINARY_FOLDER}/korucli: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
+korucli: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@echo Compiling korucli
 	cd ./cmd/korucli && \
 	go build -o ../../${BINARY_FOLDER}/korucli ${FLAGS}
-${BINARY_FOLDER}/korued: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
+korued: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@echo Compiling korued
 	cd ./cmd/korued && \
 	packr && \

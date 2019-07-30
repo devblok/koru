@@ -5,7 +5,7 @@ Small feats, that consist of a list of TODO items, to consider them complete
 ### Triangle
 
 - [x] Not included already complete tasks...
-- [ ] Correct window resizing (recreation of Renderer properties)
+- [x] Correct window resizing (recreation of Renderer properties)
 - [ ] Triangle on korued window
 - [ ] Logs piped to korued console
 - [ ] Ability to disable frames per second limitation
@@ -15,3 +15,9 @@ Small feats, that consist of a list of TODO items, to consider them complete
 - [ ] MacOS build
 - [ ] Windows build
 - [ ] Travis pipeline
+
+## Good hygene
+
+- [ ] Strings given to vulkan need to be escaped
+- [ ] Command pools should be freed, not re-allocated
+- [ ] Multiple sets of resources per frame + fences
