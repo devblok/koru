@@ -4,8 +4,11 @@ OS := $(shell uname -s)
 FLAGS := ""
 
 all: build-all
-build-all: ${OS} ${BINARY_FOLDER}/koru ${BINARY_FOLDER}/korucli ${BINARY_FOLDER}/korued
+build-all: ${OS} koru korucli korued
 	@echo Built everything
+koru: ${BINARY_FOLDER}/koru
+korucli: ${BINARY_FOLDER}/korucli
+korued: ${BINARY_FOLDER}/korued
 ${BINARY_FOLDER}:
 	@echo Create binary folder
 	mkdir -p ${BINARY_FOLDER}
@@ -30,7 +33,7 @@ ${BINARY_FOLDER}/korued: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINAR
 	packr && \
 	go build -o ../../${BINARY_FOLDER}/korued ${FLAGS}
 ${BINARY_FOLDER}/shaders: ${BINARY_FOLDER}
-	mkdir ${BINARY_FOLDER}/shaders
+	mkdir -p ${BINARY_FOLDER}/shaders
 	./buildShaders.sh ${BINARY_FOLDER}/shaders
 
 Linux:
