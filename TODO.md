@@ -19,5 +19,5 @@ Small feats, that consist of a list of TODO items, to consider them complete
 ## Good hygene
 
 - [ ] Strings given to vulkan need to be escaped
-- [ ] Command pools should be freed, not re-allocated
+- [x] Command pools should be freed, not re-allocated
 - [ ] Multiple sets of resources per frame + fences

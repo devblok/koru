@@ -448,8 +448,6 @@ func (v *VulkanRenderer) Initialise() error {
 
 func (v *VulkanRenderer) destroyBeforeRecreatePipeline() {
 	vk.FreeCommandBuffers(v.logicalDevice, v.commandPool, uint32(len(v.commandBuffers)), v.commandBuffers)
-	v.commandBuffers = []vk.CommandBuffer{}
-	vk.DestroyCommandPool(v.logicalDevice, v.commandPool, nil)
 
 	for _, fb := range v.framebuffers {
 		vk.DestroyFramebuffer(v.logicalDevice, fb, nil)
@@ -507,10 +505,6 @@ func (v *VulkanRenderer) recreatePipeline() error {
 	}
 
 	if err := v.createFramebuffers(); err != nil {
-		return err
-	}
-
-	if err := v.createCommandPool(); err != nil {
 		return err
 	}
 
