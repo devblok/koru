@@ -16,15 +16,15 @@ var DefaultVulkanApplicationInfo = &vk.ApplicationInfo{
 	SType:              vk.StructureTypeApplicationInfo,
 	ApiVersion:         vk.MakeVersion(1, 0, 0),
 	ApplicationVersion: vk.MakeVersion(1, 0, 0),
-	PApplicationName:   "Koru3D\x00",
-	PEngineName:        "Koru3D\x00",
+	PApplicationName:   safeString("Koru3D"),
+	PEngineName:        safeString("Koru3D"),
 }
 
 // NewVulkanInstance creates a Vulkan instance
 func NewVulkanInstance(appInfo *vk.ApplicationInfo, window unsafe.Pointer, cfg InstanceConfiguration) (Instance, error) {
 	if cfg.DebugMode {
-		cfg.Layers = append(cfg.Layers, "VK_LAYER_LUNARG_standard_validation\x00")
-		cfg.Extensions = append(cfg.Extensions, "VK_EXT_debug_report\x00")
+		cfg.Layers = append(cfg.Layers, "VK_LAYER_LUNARG_standard_validation")
+		cfg.Extensions = append(cfg.Extensions, "VK_EXT_debug_report")
 	}
 
 	if window == nil {
@@ -44,9 +44,9 @@ func NewVulkanInstance(appInfo *vk.ApplicationInfo, window unsafe.Pointer, cfg I
 		SType:                   vk.StructureTypeInstanceCreateInfo,
 		PApplicationInfo:        appInfo,
 		EnabledExtensionCount:   uint32(len(cfg.Extensions)),
-		PpEnabledExtensionNames: cfg.Extensions,
+		PpEnabledExtensionNames: safeStrings(cfg.Extensions),
 		EnabledLayerCount:       uint32(len(cfg.Layers)),
-		PpEnabledLayerNames:     cfg.Layers,
+		PpEnabledLayerNames:     safeStrings(cfg.Layers),
 	}
 
 	var instance vk.Instance
@@ -246,7 +246,7 @@ type VulkanRenderer struct {
 func (v *VulkanRenderer) Initialise() error {
 	// TODO: Make extension name escaping bearable
 	requiredExtensions := []string{
-		vk.KhrSwapchainExtensionName + "\x00",
+		vk.KhrSwapchainExtensionName,
 	}
 
 	{
@@ -321,7 +321,7 @@ func (v *VulkanRenderer) Initialise() error {
 		QueueCreateInfoCount:    uint32(len(queueInfos)),
 		PQueueCreateInfos:       queueInfos,
 		EnabledExtensionCount:   uint32(len(requiredExtensions)),
-		PpEnabledExtensionNames: requiredExtensions,
+		PpEnabledExtensionNames: safeStrings(requiredExtensions),
 	}
 	if err := vk.Error(vk.CreateDevice(v.physicalDevice, &dci, nil, &vkDevice)); err != nil {
 		return errors.New("vk.CreateDevice(): " + err.Error())
@@ -932,7 +932,7 @@ func (v *VulkanRenderer) createPipeline() error {
 		pipelineShaderStagesInfo[idx].SType = vk.StructureTypePipelineShaderStageCreateInfo
 		pipelineShaderStagesInfo[idx].Stage = stage
 		pipelineShaderStagesInfo[idx].Module = shaderModule
-		pipelineShaderStagesInfo[idx].PName = "main\x00"
+		pipelineShaderStagesInfo[idx].PName = safeString("main")
 	}
 
 	gpci := []vk.GraphicsPipelineCreateInfo{{
