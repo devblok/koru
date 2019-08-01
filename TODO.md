@@ -12,6 +12,7 @@ Small feats, that consist of a list of TODO items, to consider them complete
 - [ ] Basic histogram capability (for later benchmarks and compiler experimentation)
 - [ ] Triangle is a model, not a hard-coded shader
 - [ ] Triangle is now a square that has texture
+- [ ] Operation in 3D space, not just screen 2D plane
 - [ ] MacOS build
 - [ ] Windows build
 - [ ] Travis pipeline
