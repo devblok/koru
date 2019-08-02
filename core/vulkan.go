@@ -236,9 +236,10 @@ type VulkanRenderer struct {
 	pipeline       vk.Pipeline
 	pipelineCache  vk.PipelineCache
 
-	descriptorSetLayout vk.DescriptorSetLayout
-	descriptorPool      vk.DescriptorPool
-	renderPass          vk.RenderPass
+	descriptorPool       vk.DescriptorPool
+	descriptorSetLayouts []vk.DescriptorSetLayout
+	descriptorSets       []vk.DescriptorSet
+	renderPass           vk.RenderPass
 
 	depthImage       vk.Image
 	depthImageView   vk.ImageView
@@ -256,9 +257,11 @@ type VulkanRenderer struct {
 	currentQueueIndex  uint32
 	graphicsQueueIndex uint32
 
-	vertices     []Vertex
-	vertexBuffer vk.Buffer
-	vertexMemory vk.DeviceMemory
+	vertices             []Vertex
+	vertexBuffer         vk.Buffer
+	vertexMemory         vk.DeviceMemory
+	uniformBuffers       []vk.Buffer
+	uniformBuffersMemory []vk.DeviceMemory
 }
 
 // Initialise implements interface
@@ -433,14 +436,6 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
-	// if err := v.prepareDescriptorPool(); err != nil {
-	// 	return err
-	// }
-
-	// if err := v.prepareDescriptorSet(); err != nil {
-	// 	return err
-	// }
-
 	if err := v.createFramebuffers(); err != nil {
 		return err
 	}
@@ -453,6 +448,18 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
+	if err := v.createUniformBuffers(); err != nil {
+		return err
+	}
+
+	if err := v.prepareDescriptorPool(); err != nil {
+		return err
+	}
+
+	if err := v.createDescriptorSets(); err != nil {
+		return err
+	}
+
 	if err := v.allocateCommandBuffers(); err != nil {
 		return err
 	}
@@ -461,11 +468,57 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
+	for idx := range v.swapchainImages {
+		v.updateUniformBuffers(uint32(idx))
+	}
+
 	/* Fill in command buffers */
 	if err := v.buildCommandBuffers(); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+func (v *VulkanRenderer) createUniformBuffers() error {
+	bufferSize := vk.DeviceSize(unsafe.Sizeof(Uniform{}))
+	uniformBuffers := make([]vk.Buffer, len(v.swapchainImages))
+	uniformBuffersMemory := make([]vk.DeviceMemory, len(v.swapchainImages))
+
+	for idx := 0; idx < len(v.swapchainImages); idx++ {
+		bci := vk.BufferCreateInfo{
+			SType:       vk.StructureTypeBufferCreateInfo,
+			Size:        bufferSize,
+			Usage:       vk.BufferUsageFlags(vk.BufferUsageUniformBufferBit),
+			SharingMode: vk.SharingModeExclusive,
+		}
+		if err := vk.Error(vk.CreateBuffer(v.logicalDevice, &bci, nil, &uniformBuffers[idx])); err != nil {
+			return fmt.Errorf("vk.CreateBuffer(): %s", err.Error())
+		}
+
+		var memoryRequirements vk.MemoryRequirements
+		vk.GetBufferMemoryRequirements(v.logicalDevice, uniformBuffers[idx], &memoryRequirements)
+		memoryRequirements.Deref()
+		memTypeIdx, err := findMemoryType(v.physicalDevice, memoryRequirements.MemoryTypeBits, vk.MemoryPropertyFlags(vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit))
+		if err != nil {
+			return err
+		}
+
+		mai := vk.MemoryAllocateInfo{
+			SType:           vk.StructureTypeMemoryAllocateInfo,
+			AllocationSize:  memoryRequirements.Size,
+			MemoryTypeIndex: memTypeIdx,
+		}
+
+		if err := vk.Error(vk.AllocateMemory(v.logicalDevice, &mai, nil, &uniformBuffersMemory[idx])); err != nil {
+			return fmt.Errorf("vk.AllocateMemory(): %s", err.Error())
+		}
+
+		vk.BindBufferMemory(v.logicalDevice, uniformBuffers[idx], uniformBuffersMemory[idx], 0)
+	}
+
+	v.uniformBuffers = uniformBuffers
+	v.uniformBuffersMemory = uniformBuffersMemory
 	return nil
 }
 
@@ -546,10 +599,23 @@ func findMemoryType(device vk.PhysicalDevice, filter uint32, properties vk.Memor
 func (v *VulkanRenderer) destroyBeforeRecreatePipeline() {
 	vk.FreeCommandBuffers(v.logicalDevice, v.commandPool, uint32(len(v.commandBuffers)), v.commandBuffers)
 
+	for _, mem := range v.uniformBuffersMemory {
+		vk.FreeMemory(v.logicalDevice, mem, nil)
+	}
+
+	for _, buf := range v.uniformBuffers {
+		vk.DestroyBuffer(v.logicalDevice, buf, nil)
+	}
+
 	for _, fb := range v.framebuffers {
 		vk.DestroyFramebuffer(v.logicalDevice, fb, nil)
 	}
 	v.framebuffers = []vk.Framebuffer{}
+
+	vk.DestroyDescriptorPool(v.logicalDevice, v.descriptorPool, nil)
+	for _, descriptorLayout := range v.descriptorSetLayouts {
+		vk.DestroyDescriptorSetLayout(v.logicalDevice, descriptorLayout, nil)
+	}
 
 	// Swapchain resources
 	for _, iv := range v.swapchainImageViews {
@@ -567,10 +633,10 @@ func (v *VulkanRenderer) destroyBeforeRecreatePipeline() {
 	vk.DestroyImageView(v.logicalDevice, v.depthImageView, nil)
 	vk.FreeMemory(v.logicalDevice, v.depthImageMemory, nil)
 
+	vk.DestroyRenderPass(v.logicalDevice, v.renderPass, nil)
+
 	vk.DestroyPipeline(v.logicalDevice, v.pipeline, nil)
 	vk.DestroyPipelineLayout(v.logicalDevice, v.pipelineLayout, nil)
-	vk.DestroyDescriptorSetLayout(v.logicalDevice, v.descriptorSetLayout, nil)
-	vk.DestroyRenderPass(v.logicalDevice, v.renderPass, nil)
 }
 
 func (v *VulkanRenderer) recreatePipeline() error {
@@ -602,6 +668,18 @@ func (v *VulkanRenderer) recreatePipeline() error {
 	}
 
 	if err := v.createFramebuffers(); err != nil {
+		return err
+	}
+
+	if err := v.prepareDescriptorPool(); err != nil {
+		return err
+	}
+
+	if err := v.createUniformBuffers(); err != nil {
+		return err
+	}
+
+	if err := v.createDescriptorSets(); err != nil {
 		return err
 	}
 
@@ -643,7 +721,7 @@ func (v *VulkanRenderer) buildCommandBuffers() error {
 		clearValues := make([]vk.ClearValue, 2)
 		clearValues[1].SetDepthStencil(1, 0)
 		clearValues[0].SetColor([]float32{
-			0.05, 0.05, 0.05, 0.05,
+			0.005, 0.005, 0.005, 0.005,
 		})
 
 		rpbi := vk.RenderPassBeginInfo{
@@ -667,6 +745,7 @@ func (v *VulkanRenderer) buildCommandBuffers() error {
 		vk.CmdSetViewport(commandBuffer, 0, 1, []vk.Viewport{v.viewport})
 		vk.CmdSetScissor(commandBuffer, 0, 1, []vk.Rect2D{v.scissor})
 		vk.CmdBindVertexBuffers(commandBuffer, 0, 1, []vk.Buffer{v.vertexBuffer}, []vk.DeviceSize{0})
+		vk.CmdBindDescriptorSets(commandBuffer, vk.PipelineBindPointGraphics, v.pipelineLayout, 0, 1, v.descriptorSets, 0, nil)
 		vk.CmdDraw(commandBuffer, uint32(len(v.vertices)), 1, 0, 0)
 		vk.CmdEndRenderPass(commandBuffer)
 
@@ -677,6 +756,28 @@ func (v *VulkanRenderer) buildCommandBuffers() error {
 	return nil
 }
 
+var constant float32
+
+func (v *VulkanRenderer) updateUniformBuffers(imageIdx uint32) {
+	constant += 0.05
+	ubo := Uniform{
+		Model:      glm.HomogRotate3D(constant, glm.Vec3{0, 1, 1}),
+		View:       glm.LookAt(2, 2, 2, 0, 0, 0, 0, 0, 1),
+		Projection: glm.Perspective(45, (float32)(v.currentSurfaceWidth)/(float32)(v.currentSurfaceHeight), 0.1, 10),
+	}
+	//ubo.Projection[5] *= -1 // Flip from OpenGl to Vulkan projection
+
+	var mappedMemory unsafe.Pointer
+	vk.MapMemory(v.logicalDevice, v.uniformBuffersMemory[imageIdx], 0, vk.DeviceSize(unsafe.Sizeof(ubo)), 0, &mappedMemory)
+	castMemory := *(*[]Uniform)(unsafe.Pointer(&sliceHeader{
+		Data: uintptr(mappedMemory),
+		Cap:  1,
+		Len:  1,
+	}))
+	copy(castMemory, []Uniform{ubo})
+	vk.UnmapMemory(v.logicalDevice, v.uniformBuffersMemory[imageIdx])
+}
+
 // Draw implements interface
 func (v *VulkanRenderer) Draw() error {
 	if result := vk.AcquireNextImage(v.logicalDevice, v.swapchain, math.MaxUint64, v.imageAvailableSemaphore, nil, &v.imageIndex); result == vk.ErrorOutOfDate {
@@ -685,6 +786,8 @@ func (v *VulkanRenderer) Draw() error {
 		}
 		return nil
 	}
+
+	v.updateUniformBuffers(v.imageIndex)
 
 	submit := []vk.SubmitInfo{{
 		SType:              vk.StructureTypeSubmitInfo,
@@ -757,16 +860,47 @@ func (v *VulkanRenderer) createViewport() {
 	v.scissor = scissor
 }
 
+func (v *VulkanRenderer) createDescriptorSets() error {
+	descriptorSets := make([]vk.DescriptorSet, len(v.swapchainImages))
+	dsai := vk.DescriptorSetAllocateInfo{
+		SType:              vk.StructureTypeDescriptorSetAllocateInfo,
+		DescriptorPool:     v.descriptorPool,
+		DescriptorSetCount: 1,
+		PSetLayouts:        v.descriptorSetLayouts,
+	}
+
+	for idx := range v.swapchainImages {
+		if err := vk.Error(vk.AllocateDescriptorSets(v.logicalDevice, &dsai, &descriptorSets[idx])); err != nil {
+			return fmt.Errorf("vk.AllocateDescriptorSets(): %s", err.Error())
+		}
+
+		dbi := vk.DescriptorBufferInfo{
+			Buffer: v.uniformBuffers[idx],
+			Offset: 0,
+			Range:  vk.DeviceSize(unsafe.Sizeof(Uniform{})),
+		}
+		wds := vk.WriteDescriptorSet{
+			SType:           vk.StructureTypeWriteDescriptorSet,
+			DstSet:          descriptorSets[idx],
+			DstBinding:      0,
+			DstArrayElement: 0,
+			DescriptorType:  vk.DescriptorTypeUniformBuffer,
+			DescriptorCount: 1,
+			PBufferInfo:     []vk.DescriptorBufferInfo{dbi},
+		}
+		vk.UpdateDescriptorSets(v.logicalDevice, 1, []vk.WriteDescriptorSet{wds}, 0, nil)
+	}
+	v.descriptorSets = descriptorSets
+	return nil
+}
+
 func (v *VulkanRenderer) prepareDescriptorPool() error {
 	dpci := vk.DescriptorPoolCreateInfo{
 		SType:         vk.StructureTypeDescriptorPoolCreateInfo,
 		MaxSets:       uint32(len(v.swapchainImages)),
-		PoolSizeCount: 2,
+		PoolSizeCount: 1,
 		PPoolSizes: []vk.DescriptorPoolSize{{
 			Type:            vk.DescriptorTypeUniformBuffer,
-			DescriptorCount: uint32(len(v.swapchainImages)),
-		}, {
-			Type:            vk.DescriptorTypeCombinedImageSampler,
 			DescriptorCount: uint32(len(v.swapchainImages)),
 		}},
 	}
@@ -777,10 +911,6 @@ func (v *VulkanRenderer) prepareDescriptorPool() error {
 	}
 	v.descriptorPool = descriptorPool
 
-	return nil
-}
-
-func (v *VulkanRenderer) prepareDescriptorSet() error {
 	return nil
 }
 
@@ -1192,20 +1322,25 @@ func (v *VulkanRenderer) createPipelineLayout() error {
 				DescriptorCount: 1,
 				DescriptorType:  vk.DescriptorTypeUniformBuffer,
 				StageFlags:      vk.ShaderStageFlags(vk.ShaderStageVertexBit),
+				Binding:         0,
 			},
 		},
 	}
 
-	var descriptorSetLayout vk.DescriptorSetLayout
-	if err := vk.Error(vk.CreateDescriptorSetLayout(v.logicalDevice, &dslci, nil, &descriptorSetLayout)); err != nil {
-		return errors.New("vk.CreateDescriptorSetLayout(): " + err.Error())
+	var descriptorSetLayouts []vk.DescriptorSetLayout
+	for range v.swapchainImages {
+		var descriptorSetLayout vk.DescriptorSetLayout
+		if err := vk.Error(vk.CreateDescriptorSetLayout(v.logicalDevice, &dslci, nil, &descriptorSetLayout)); err != nil {
+			return errors.New("vk.CreateDescriptorSetLayout(): " + err.Error())
+		}
+		descriptorSetLayouts = append(descriptorSetLayouts, descriptorSetLayout)
 	}
-	v.descriptorSetLayout = descriptorSetLayout
+	v.descriptorSetLayouts = descriptorSetLayouts
 
 	plci := vk.PipelineLayoutCreateInfo{
 		SType:          vk.StructureTypePipelineLayoutCreateInfo,
-		SetLayoutCount: 1,
-		PSetLayouts:    []vk.DescriptorSetLayout{v.descriptorSetLayout},
+		SetLayoutCount: uint32(len(v.descriptorSetLayouts)),
+		PSetLayouts:    v.descriptorSetLayouts,
 	}
 
 	var pipelineLayout vk.PipelineLayout
@@ -1349,6 +1484,14 @@ func (v *VulkanRenderer) Destroy() {
 
 	vk.DestroyCommandPool(v.logicalDevice, v.commandPool, nil)
 
+	for _, mem := range v.uniformBuffersMemory {
+		vk.FreeMemory(v.logicalDevice, mem, nil)
+	}
+
+	for _, buf := range v.uniformBuffers {
+		vk.DestroyBuffer(v.logicalDevice, buf, nil)
+	}
+
 	for _, f := range v.framebuffers {
 		vk.DestroyFramebuffer(v.logicalDevice, f, nil)
 	}
@@ -1358,7 +1501,9 @@ func (v *VulkanRenderer) Destroy() {
 	}
 
 	vk.DestroyDescriptorPool(v.logicalDevice, v.descriptorPool, nil)
-	vk.DestroyDescriptorSetLayout(v.logicalDevice, v.descriptorSetLayout, nil)
+	for _, descriptorLayout := range v.descriptorSetLayouts {
+		vk.DestroyDescriptorSetLayout(v.logicalDevice, descriptorLayout, nil)
+	}
 
 	vk.DestroyPipeline(v.logicalDevice, v.pipeline, nil)
 	vk.DestroyPipelineCache(v.logicalDevice, v.pipelineCache, nil)
@@ -1446,6 +1591,13 @@ func (v VulkanShader) Destroy() {
 type Vertex struct {
 	Pos   glm.Vec2
 	Color glm.Vec4
+}
+
+// Uniform defines a model-view-projection object
+type Uniform struct {
+	Model      glm.Mat4
+	View       glm.Mat4
+	Projection glm.Mat4
 }
 
 func vertexBindingDescriptions() []vk.VertexInputBindingDescription {
