@@ -11,10 +11,12 @@ Small feats, that consist of a list of TODO items, to consider them complete
 - [ ] Logs piped to korued console
 - [x] Ability to disable frames per second limitation
 - [x] Operation in 3D space, not just screen 2D plane
-- [ ] MacOS build
 
 ### Model meshes
 
+- [ ] Mesh loaded from Collada format
+- [ ] Gob encoder (accessible through korucli)
+- [ ] Gob model loader
 - [ ] Basic histogram capability (for later benchmarks and compiler experimentation)
 - [ ] Textures
 
@@ -26,5 +28,6 @@ Small feats, that consist of a list of TODO items, to consider them complete
 
 ## Support
 
+- [ ] MacOS build
 - [ ] Windows build
 - [ ] Travis pipeline
