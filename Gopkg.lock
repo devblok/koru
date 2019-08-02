@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  branch = "master"
+  digest = "1:20093807cff9bf93486b6d9ebf3a658ce61092d25be1202495bd82db26a15ed0"
+  name = "github.com/go-gl/mathgl"
+  packages = ["mgl32"]
+  pruneopts = "UT"
+  revision = "592312d8590acb0686c14740dcf60e2f32d9c618"
+
+[[projects]]
   digest = "1:d29ee5ef14a7e0253facd0bcebe6a69a7a4e02a67eb24d2aacd8ccb4a7cea6fc"
   name = "github.com/gobuffalo/envy"
   packages = ["."]
@@ -100,6 +108,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:95198eb6f7a9fd8970f3bd24f130da14b68ba1dc3738f191f39f4a822d21e6d8"
+  name = "golang.org/x/image"
+  packages = ["math/f32"]
+  pruneopts = "UT"
+  revision = "1bd0cf57649315a0106c88938931e54f3c0f88e5"
+
+[[projects]]
+  branch = "master"
   digest = "1:a2b03582f5805ebb5d96482a0ea550d48aba5347cc5089d89d2307ac55b98660"
   name = "golang.org/x/sys"
   packages = ["unix"]
@@ -110,6 +126,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/go-gl/mathgl/mgl32",
     "github.com/gobuffalo/packr",
     "github.com/gotk3/gotk3/glib",
     "github.com/gotk3/gotk3/gtk",

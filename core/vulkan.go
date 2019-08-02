@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unsafe"
 
+	glm "github.com/go-gl/mathgl/mgl32"
 	vk "github.com/vulkan-go/vulkan"
 )
 
@@ -186,6 +187,20 @@ func NewVulkanRenderer(instance Instance, cfg RendererConfiguration) (Renderer, 
 		currentSurfaceWidth:  cfg.ScreenWidth,
 		surface:              instance.Surface(),
 		physicalDevice:       instance.AvailableDevices()[0],
+		vertices: []Vertex{
+			Vertex{
+				Pos:   glm.Vec2{0.0, -0.5},
+				Color: glm.Vec4{1.0, 0.0, 0.0, 1.0},
+			},
+			Vertex{
+				Pos:   glm.Vec2{0.5, 0.5},
+				Color: glm.Vec4{0.0, 1.0, 0.0, 1.0},
+			},
+			Vertex{
+				Pos:   glm.Vec2{-0.5, 0.5},
+				Color: glm.Vec4{0.0, 0.0, 1.0, 1.0},
+			},
+		},
 	}, nil
 }
 
@@ -240,6 +255,10 @@ type VulkanRenderer struct {
 
 	currentQueueIndex  uint32
 	graphicsQueueIndex uint32
+
+	vertices     []Vertex
+	vertexBuffer vk.Buffer
+	vertexMemory vk.DeviceMemory
 }
 
 // Initialise implements interface
@@ -430,6 +449,10 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
+	if err := v.createVertexBuffers(); err != nil {
+		return err
+	}
+
 	if err := v.allocateCommandBuffers(); err != nil {
 		return err
 	}
@@ -444,6 +467,80 @@ func (v *VulkanRenderer) Initialise() error {
 	}
 
 	return nil
+}
+
+func (v *VulkanRenderer) createVertexBuffers() error {
+	bci := vk.BufferCreateInfo{
+		SType:       vk.StructureTypeBufferCreateInfo,
+		Size:        vk.DeviceSize(int(unsafe.Sizeof(Vertex{})) * len(v.vertices)),
+		Usage:       vk.BufferUsageFlags(vk.BufferUsageVertexBufferBit),
+		SharingMode: vk.SharingModeExclusive,
+	}
+
+	var vertexBuffer vk.Buffer
+	if err := vk.Error(vk.CreateBuffer(v.logicalDevice, &bci, nil, &vertexBuffer)); err != nil {
+		return fmt.Errorf("vk.CreateBuffer(): %s", err.Error())
+	}
+	v.vertexBuffer = vertexBuffer
+
+	memoryRequirements := vk.MemoryRequirements{}
+	vk.GetBufferMemoryRequirements(v.logicalDevice, vertexBuffer, &memoryRequirements)
+	memoryRequirements.Deref()
+
+	memoryTypeIndex, err := findMemoryType(v.physicalDevice, memoryRequirements.MemoryTypeBits, vk.MemoryPropertyFlags(vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit))
+	if err != nil {
+		return err
+	}
+
+	mai := vk.MemoryAllocateInfo{
+		SType:           vk.StructureTypeMemoryAllocateInfo,
+		AllocationSize:  memoryRequirements.Size,
+		MemoryTypeIndex: memoryTypeIndex,
+	}
+
+	var vertexMemory vk.DeviceMemory
+	if err := vk.Error(vk.AllocateMemory(v.logicalDevice, &mai, nil, &vertexMemory)); err != nil {
+		return fmt.Errorf("vk.AllocateMemory(): %s", err.Error())
+	}
+	v.vertexMemory = vertexMemory
+
+	if err := vk.Error(vk.BindBufferMemory(v.logicalDevice, vertexBuffer, vertexMemory, 0)); err != nil {
+		return fmt.Errorf("vk.BindBufferMemory(): %s", err.Error())
+	}
+
+	var vertexMappedMemory unsafe.Pointer
+	vk.MapMemory(v.logicalDevice, vertexMemory, 0, bci.Size, 0, &vertexMappedMemory)
+
+	vertexCastMemory := *(*[]Vertex)(unsafe.Pointer(&sliceHeader{
+		Data: uintptr(vertexMappedMemory),
+		Cap:  len(v.vertices),
+		Len:  len(v.vertices),
+	}))
+	copy(vertexCastMemory, v.vertices[:])
+
+	// Approach #2
+	// buf := new(bytes.Buffer)
+	// binary.Write(buf, binary.LittleEndian, v.vertices)
+	// rawBytes := buf.Bytes()
+	// vk.Memcopy(vertexMappedMemory, rawBytes)
+
+	vk.UnmapMemory(v.logicalDevice, vertexMemory)
+
+	return nil
+}
+
+func findMemoryType(device vk.PhysicalDevice, filter uint32, properties vk.MemoryPropertyFlags) (uint32, error) {
+	memoryProperties := vk.PhysicalDeviceMemoryProperties{}
+	vk.GetPhysicalDeviceMemoryProperties(device, &memoryProperties)
+	memoryProperties.Deref()
+
+	for idx := uint32(0); idx < memoryProperties.MemoryTypeCount; idx++ {
+		memoryProperties.MemoryTypes[idx].Deref()
+		if filter&(1<<idx) != 0 && (memoryProperties.MemoryTypes[idx].PropertyFlags&properties) == properties {
+			return idx, nil
+		}
+	}
+	return 0, errors.New("memory type not found for vertex buffer")
 }
 
 func (v *VulkanRenderer) destroyBeforeRecreatePipeline() {
@@ -569,7 +666,8 @@ func (v *VulkanRenderer) buildCommandBuffers() error {
 		vk.CmdBindPipeline(commandBuffer, vk.PipelineBindPointGraphics, v.pipeline)
 		vk.CmdSetViewport(commandBuffer, 0, 1, []vk.Viewport{v.viewport})
 		vk.CmdSetScissor(commandBuffer, 0, 1, []vk.Rect2D{v.scissor})
-		vk.CmdDraw(commandBuffer, 3, 1, 0, 0)
+		vk.CmdBindVertexBuffers(commandBuffer, 0, 1, []vk.Buffer{v.vertexBuffer}, []vk.DeviceSize{0})
+		vk.CmdDraw(commandBuffer, uint32(len(v.vertices)), 1, 0, 0)
 		vk.CmdEndRenderPass(commandBuffer)
 
 		if err := vk.Error(vk.EndCommandBuffer(commandBuffer)); err != nil {
@@ -935,12 +1033,19 @@ func (v *VulkanRenderer) createPipeline() error {
 		pipelineShaderStagesInfo[idx].PName = safeString("main")
 	}
 
+	vertexAttributeDescriptions := vertexAttributeDescriptions()
+	vertexBindingDescriptions := vertexBindingDescriptions()
+
 	gpci := []vk.GraphicsPipelineCreateInfo{{
 		SType:      vk.StructureTypeGraphicsPipelineCreateInfo,
 		StageCount: uint32(len(pipelineShaderStagesInfo)),
 		PStages:    pipelineShaderStagesInfo,
 		PVertexInputState: &vk.PipelineVertexInputStateCreateInfo{
-			SType: vk.StructureTypePipelineVertexInputStateCreateInfo,
+			SType:                           vk.StructureTypePipelineVertexInputStateCreateInfo,
+			VertexAttributeDescriptionCount: uint32(len(vertexAttributeDescriptions)),
+			PVertexAttributeDescriptions:    vertexAttributeDescriptions,
+			VertexBindingDescriptionCount:   uint32(len(vertexBindingDescriptions)),
+			PVertexBindingDescriptions:      vertexBindingDescriptions,
 		},
 		PInputAssemblyState: &vk.PipelineInputAssemblyStateCreateInfo{
 			SType:    vk.StructureTypePipelineInputAssemblyStateCreateInfo,
@@ -1260,6 +1365,9 @@ func (v *VulkanRenderer) Destroy() {
 	vk.DestroyRenderPass(v.logicalDevice, v.renderPass, nil)
 	vk.DestroyPipelineLayout(v.logicalDevice, v.pipelineLayout, nil)
 
+	vk.DestroyBuffer(v.logicalDevice, v.vertexBuffer, nil)
+	vk.FreeMemory(v.logicalDevice, v.vertexMemory, nil)
+
 	vk.FreeMemory(v.logicalDevice, v.depthImageMemory, nil)
 	vk.DestroyImageView(v.logicalDevice, v.depthImageView, nil)
 	vk.DestroyImage(v.logicalDevice, v.depthImage, nil)
@@ -1332,4 +1440,35 @@ func (v VulkanShader) Name() string {
 // Destroy implements interface
 func (v VulkanShader) Destroy() {
 	vk.DestroyShaderModule(v.device, v.shader, nil)
+}
+
+// Vertex is a model vertex
+type Vertex struct {
+	Pos   glm.Vec2
+	Color glm.Vec4
+}
+
+func vertexBindingDescriptions() []vk.VertexInputBindingDescription {
+	return []vk.VertexInputBindingDescription{{
+		Binding:   0,
+		Stride:    uint32(unsafe.Sizeof(Vertex{})),
+		InputRate: vk.VertexInputRateVertex,
+	}}
+}
+
+func vertexAttributeDescriptions() []vk.VertexInputAttributeDescription {
+	return []vk.VertexInputAttributeDescription{
+		{
+			Binding:  0,
+			Location: 0,
+			Format:   vk.FormatR32g32Sfloat,
+			Offset:   uint32(unsafe.Offsetof(Vertex{}.Pos)),
+		},
+		{
+			Binding:  0,
+			Location: 1,
+			Format:   vk.FormatR32g32b32a32Sfloat,
+			Offset:   uint32(unsafe.Offsetof(Vertex{}.Color)),
+		},
+	}
 }

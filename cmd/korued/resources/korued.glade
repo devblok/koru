@@ -26,7 +26,15 @@
             <property name="position">750</property>
             <property name="position_set">True</property>
             <child>
-              <placeholder/>
+              <object class="GtkGLArea" id="renderingSurface">
+                <property name="visible">True</property>
+                <property name="app_paintable">True</property>
+                <property name="can_focus">False</property>
+              </object>
+              <packing>
+                <property name="resize">False</property>
+                <property name="shrink">True</property>
+              </packing>
             </child>
             <child>
               <object class="GtkFrame">
