@@ -59,13 +59,8 @@ func buildInterface() (*gtk.Application, error) {
 			panic(errors.New("failed to cast Object from builder to Window"))
 		}
 
-		win.SetDefaultSize(1280, 720)
 		win.ShowAll()
 		app.AddWindow(win)
-
-		if _, err := builder.GetObject("renderingSurface"); err != nil {
-			panic(err)
-		}
 	})
 
 	app.Connect("shutdown", func() {
