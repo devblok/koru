@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,4 +61,16 @@ type sliceHeader struct {
 func sliceUint32(data []byte) []uint32 {
 	const m = 0x7fffffff
 	return (*[m / 4]uint32)(unsafe.Pointer((*sliceHeader)(unsafe.Pointer(&data)).Data))[:len(data)/4]
+}
+
+func safeString(s string) string {
+	return fmt.Sprintf("%s\x00", s)
+}
+
+func safeStrings(sgs []string) []string {
+	safe := []string{}
+	for _, s := range sgs {
+		safe = append(safe, fmt.Sprintf("%s\x00", s))
+	}
+	return safe
 }

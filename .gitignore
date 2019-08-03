@@ -18,3 +18,4 @@ vendor/
 
 */*/a_main-packr.go
 *.glade~
+*.glade#

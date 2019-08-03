@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"runtime"
+	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/devblok/koru/core"
@@ -19,6 +23,8 @@ var (
 	vkRenderer core.Renderer
 	sdlWindow  *sdl.Window
 	sdlSurface unsafe.Pointer
+
+	frameCounter int64
 )
 
 var configuration = core.Configuration{
@@ -29,9 +35,8 @@ var configuration = core.Configuration{
 		ScreenWidth:   800,
 		ScreenHeight:  600,
 		SwapchainSize: 3,
-		// TODO: Make extension name escaping bearable
 		DeviceExtensions: []string{
-			"VK_KHR_swapchain\x00",
+			"VK_KHR_swapchain",
 		},
 		ShaderDirectory: "./shaders",
 	},
@@ -76,6 +81,7 @@ func main() {
 		} else {
 			vkInstance = vi
 		}
+		defer vkInstance.Destroy()
 	}
 
 	sdlWindow = newWindow()
@@ -100,9 +106,27 @@ func main() {
 	if err := vkRenderer.Initialise(); err != nil {
 		panic(err)
 	}
+	defer vkRenderer.Destroy()
 
-	time := core.NewTime(configuration.Time)
+	timeService := core.NewTime(configuration.Time)
 	exitC := make(chan struct{}, 2)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func(ctx context.Context) {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				currentCount := atomic.LoadInt64(&frameCounter)
+				atomic.StoreInt64(&frameCounter, 0)
+				fmt.Printf("Frame count: %d\n", currentCount)
+				time.Sleep(1 * time.Second)
+			}
+		}
+	}(ctx)
 
 EventLoop:
 	for {
@@ -110,7 +134,7 @@ EventLoop:
 		case <-exitC:
 			log.Println("Event loop exited")
 			break EventLoop
-		case <-time.FpsTicker().C:
+		case <-timeService.FpsTicker().C:
 			var event sdl.Event
 			for event = sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 				switch et := event.(type) {
@@ -130,9 +154,7 @@ EventLoop:
 			if err := vkRenderer.Draw(); err != nil {
 				log.Println("Draw error: " + err.Error())
 			}
+			atomic.AddInt64(&frameCounter, 1)
 		}
 	}
-
-	vkRenderer.Destroy()
-	vkInstance.Destroy()
 }

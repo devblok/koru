@@ -34,14 +34,12 @@ func buildInterface() (*gtk.Application, error) {
 
 		resource, err := StaticResources.FindString("korued.glade")
 		if err != nil {
-			log.Fatal(err)
 			panic(err)
 		}
 
 		builder, err := gtk.BuilderNew()
 		builder.AddFromString(resource)
 		if err != nil {
-			log.Error(err)
 			panic(err)
 		}
 
@@ -49,7 +47,7 @@ func buildInterface() (*gtk.Application, error) {
 
 		obj, err := builder.GetObject("mainWindow")
 		if err != nil {
-			log.Error(err)
+			panic(err)
 		}
 
 		var (
@@ -58,13 +56,11 @@ func buildInterface() (*gtk.Application, error) {
 		)
 
 		if win, ok = obj.(*gtk.Window); !ok {
-			log.Error(errors.New("failed to cast Object from builder to Window"))
-		} else {
-			win.SetDefaultSize(800, 600)
-
-			win.ShowAll()
-			app.AddWindow(win)
+			panic(errors.New("failed to cast Object from builder to Window"))
 		}
+
+		win.ShowAll()
+		app.AddWindow(win)
 	})
 
 	app.Connect("shutdown", func() {
