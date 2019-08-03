@@ -55,9 +55,6 @@ func newWindow() *sdl.Window {
 	return window
 }
 
-func handleWindowEvent(event *sdl.WindowEvent) {
-}
-
 func main() {
 	if err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS); err != nil {
 		panic(err)
@@ -81,6 +78,7 @@ func main() {
 		} else {
 			vkInstance = vi
 		}
+		defer vkInstance.Destroy()
 	}
 
 	sdlWindow = newWindow()
@@ -105,11 +103,13 @@ func main() {
 	if err := vkRenderer.Initialise(); err != nil {
 		panic(err)
 	}
+	defer vkRenderer.Destroy()
 
 	timeService := core.NewTime(configuration.Time)
 	exitC := make(chan struct{}, 2)
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	go func(ctx context.Context) {
 		for {
@@ -135,8 +135,6 @@ EventLoop:
 			var event sdl.Event
 			for event = sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 				switch et := event.(type) {
-				case *sdl.WindowEvent:
-					handleWindowEvent(et)
 				case *sdl.KeyboardEvent:
 					if et.Keysym.Sym == sdl.K_ESCAPE {
 						exitC <- struct{}{}
@@ -153,9 +151,4 @@ EventLoop:
 			atomic.AddInt64(&frameCounter, 1)
 		}
 	}
-
-	cancel()
-
-	vkRenderer.Destroy()
-	vkInstance.Destroy()
 }
