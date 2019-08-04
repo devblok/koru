@@ -115,7 +115,7 @@ func TestImportColladaObject(t *testing.T) {
 	}
 
 	vert := obj.Vertices()
-	if len(vert) != 12 {
+	if len(vert) != 36 {
 		t.Fatalf("wrong amount of vertices, got: %d", len(vert))
 	}
 }
