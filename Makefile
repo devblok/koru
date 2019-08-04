@@ -4,7 +4,7 @@ OS := $(shell uname -s)
 FLAGS := ""
 
 all: build-all
-build-all: ${OS} koru korucli korued
+build-all: ${OS} koru korucli korued test-all
 	@echo Built everything
 ${BINARY_FOLDER}/koru: koru
 ${BINARY_FOLDER}/korucli: korucli
@@ -46,6 +46,10 @@ fix-vulkan:
 	cd vendor/github.com/vulkan-go/vulkan && \
 	make clean && \
 	c-for-go -ccdefs -ccincl -out .. vulkan.yml
+
+test-all: test-unit
+test-unit:
+	go test ./...
 
 clean:
 	rm -rf vendor ${BINARY_FOLDER}
