@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/devblok/koru/model"
 	glm "github.com/go-gl/mathgl/mgl32"
 	vk "github.com/vulkan-go/vulkan"
 )
@@ -181,26 +182,37 @@ func (v VulkanInstance) Destroy() {
 
 // NewVulkanRenderer creates a not yet initialised Vulkan API renderer
 func NewVulkanRenderer(instance Instance, cfg RendererConfiguration) (Renderer, error) {
+	data, err := ioutil.ReadFile("assets/cube.dae")
+	if err != nil {
+		return nil, err
+	}
+
+	obj, err := model.ImportColladaObject(data)
+	if err != nil {
+		return nil, err
+	}
+
 	return &VulkanRenderer{
 		configuration:        cfg,
 		currentSurfaceHeight: cfg.ScreenHeight,
 		currentSurfaceWidth:  cfg.ScreenWidth,
 		surface:              instance.Surface(),
 		physicalDevice:       instance.AvailableDevices()[0],
-		vertices: []Vertex{
-			Vertex{
-				Pos:   glm.Vec2{0.0, -0.5},
-				Color: glm.Vec4{1.0, 0.0, 0.0, 1.0},
-			},
-			Vertex{
-				Pos:   glm.Vec2{0.5, 0.5},
-				Color: glm.Vec4{0.0, 1.0, 0.0, 1.0},
-			},
-			Vertex{
-				Pos:   glm.Vec2{-0.5, 0.5},
-				Color: glm.Vec4{0.0, 0.0, 1.0, 1.0},
-			},
-		},
+		vertices:             obj.Vertices(),
+		// vertices: []model.Vertex{
+		// 	model.Vertex{
+		// 		Pos:   glm.Vec2{0.0, -0.5},
+		// 		Color: glm.Vec4{1.0, 0.0, 0.0, 1.0},
+		// 	},
+		// 	model.Vertex{
+		// 		Pos:   glm.Vec2{0.5, 0.5},
+		// 		Color: glm.Vec4{0.0, 1.0, 0.0, 1.0},
+		// 	},
+		// 	model.Vertex{
+		// 		Pos:   glm.Vec2{-0.5, 0.5},
+		// 		Color: glm.Vec4{0.0, 0.0, 1.0, 1.0},
+		// 	},
+		// },
 	}, nil
 }
 
@@ -257,7 +269,7 @@ type VulkanRenderer struct {
 	currentQueueIndex  uint32
 	graphicsQueueIndex uint32
 
-	vertices             []Vertex
+	vertices             []model.Vertex
 	vertexBuffer         vk.Buffer
 	vertexMemory         vk.DeviceMemory
 	uniformBuffers       []vk.Buffer
@@ -481,7 +493,7 @@ func (v *VulkanRenderer) Initialise() error {
 }
 
 func (v *VulkanRenderer) createUniformBuffers() error {
-	bufferSize := vk.DeviceSize(unsafe.Sizeof(Uniform{}))
+	bufferSize := vk.DeviceSize(unsafe.Sizeof(model.Uniform{}))
 	uniformBuffers := make([]vk.Buffer, len(v.swapchainImages))
 	uniformBuffersMemory := make([]vk.DeviceMemory, len(v.swapchainImages))
 
@@ -525,7 +537,7 @@ func (v *VulkanRenderer) createUniformBuffers() error {
 func (v *VulkanRenderer) createVertexBuffers() error {
 	bci := vk.BufferCreateInfo{
 		SType:       vk.StructureTypeBufferCreateInfo,
-		Size:        vk.DeviceSize(int(unsafe.Sizeof(Vertex{})) * len(v.vertices)),
+		Size:        vk.DeviceSize(int(unsafe.Sizeof(model.Vertex{})) * len(v.vertices)),
 		Usage:       vk.BufferUsageFlags(vk.BufferUsageVertexBufferBit),
 		SharingMode: vk.SharingModeExclusive,
 	}
@@ -564,7 +576,7 @@ func (v *VulkanRenderer) createVertexBuffers() error {
 	var vertexMappedMemory unsafe.Pointer
 	vk.MapMemory(v.logicalDevice, vertexMemory, 0, bci.Size, 0, &vertexMappedMemory)
 
-	vertexCastMemory := *(*[]Vertex)(unsafe.Pointer(&sliceHeader{
+	vertexCastMemory := *(*[]model.Vertex)(unsafe.Pointer(&sliceHeader{
 		Data: uintptr(vertexMappedMemory),
 		Cap:  len(v.vertices),
 		Len:  len(v.vertices),
@@ -759,9 +771,9 @@ func (v *VulkanRenderer) buildCommandBuffers() error {
 var constant float32
 
 func (v *VulkanRenderer) updateUniformBuffers(imageIdx uint32) {
-	constant += 0.05
-	ubo := Uniform{
-		Model:      glm.HomogRotate3D(constant, glm.Vec3{0, 1, 1}),
+	constant += 0.005
+	ubo := model.Uniform{
+		Model:      glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
 		View:       glm.LookAt(2, 2, 2, 0, 0, 0, 0, 0, 1),
 		Projection: glm.Perspective(45, (float32)(v.currentSurfaceWidth)/(float32)(v.currentSurfaceHeight), 0.1, 10),
 	}
@@ -769,12 +781,12 @@ func (v *VulkanRenderer) updateUniformBuffers(imageIdx uint32) {
 
 	var mappedMemory unsafe.Pointer
 	vk.MapMemory(v.logicalDevice, v.uniformBuffersMemory[imageIdx], 0, vk.DeviceSize(unsafe.Sizeof(ubo)), 0, &mappedMemory)
-	castMemory := *(*[]Uniform)(unsafe.Pointer(&sliceHeader{
+	castMemory := *(*[]model.Uniform)(unsafe.Pointer(&sliceHeader{
 		Data: uintptr(mappedMemory),
 		Cap:  1,
 		Len:  1,
 	}))
-	copy(castMemory, []Uniform{ubo})
+	copy(castMemory, []model.Uniform{ubo})
 	vk.UnmapMemory(v.logicalDevice, v.uniformBuffersMemory[imageIdx])
 }
 
@@ -877,7 +889,7 @@ func (v *VulkanRenderer) createDescriptorSets() error {
 		dbi := vk.DescriptorBufferInfo{
 			Buffer: v.uniformBuffers[idx],
 			Offset: 0,
-			Range:  vk.DeviceSize(unsafe.Sizeof(Uniform{})),
+			Range:  vk.DeviceSize(unsafe.Sizeof(model.Uniform{})),
 		}
 		wds := vk.WriteDescriptorSet{
 			SType:           vk.StructureTypeWriteDescriptorSet,
@@ -1163,8 +1175,8 @@ func (v *VulkanRenderer) createPipeline() error {
 		pipelineShaderStagesInfo[idx].PName = safeString("main")
 	}
 
-	vertexAttributeDescriptions := vertexAttributeDescriptions()
-	vertexBindingDescriptions := vertexBindingDescriptions()
+	vertexAttributeDescriptions := model.VertexAttributeDescriptions()
+	vertexBindingDescriptions := model.VertexBindingDescriptions()
 
 	gpci := []vk.GraphicsPipelineCreateInfo{{
 		SType:      vk.StructureTypeGraphicsPipelineCreateInfo,
@@ -1188,7 +1200,7 @@ func (v *VulkanRenderer) createPipeline() error {
 		},
 		PRasterizationState: &vk.PipelineRasterizationStateCreateInfo{
 			SType:       vk.StructureTypePipelineRasterizationStateCreateInfo,
-			PolygonMode: vk.PolygonModeFill,
+			PolygonMode: vk.PolygonModeLine, // vk.PolygonModeFill,
 			CullMode:    vk.CullModeFlags(vk.CullModeBackBit),
 			FrontFace:   vk.FrontFaceClockwise,
 			LineWidth:   1.0,
@@ -1585,42 +1597,4 @@ func (v VulkanShader) Name() string {
 // Destroy implements interface
 func (v VulkanShader) Destroy() {
 	vk.DestroyShaderModule(v.device, v.shader, nil)
-}
-
-// Vertex is a model vertex
-type Vertex struct {
-	Pos   glm.Vec2
-	Color glm.Vec4
-}
-
-// Uniform defines a model-view-projection object
-type Uniform struct {
-	Model      glm.Mat4
-	View       glm.Mat4
-	Projection glm.Mat4
-}
-
-func vertexBindingDescriptions() []vk.VertexInputBindingDescription {
-	return []vk.VertexInputBindingDescription{{
-		Binding:   0,
-		Stride:    uint32(unsafe.Sizeof(Vertex{})),
-		InputRate: vk.VertexInputRateVertex,
-	}}
-}
-
-func vertexAttributeDescriptions() []vk.VertexInputAttributeDescription {
-	return []vk.VertexInputAttributeDescription{
-		{
-			Binding:  0,
-			Location: 0,
-			Format:   vk.FormatR32g32Sfloat,
-			Offset:   uint32(unsafe.Offsetof(Vertex{}.Pos)),
-		},
-		{
-			Binding:  0,
-			Location: 1,
-			Format:   vk.FormatR32g32b32a32Sfloat,
-			Offset:   uint32(unsafe.Offsetof(Vertex{}.Color)),
-		},
-	}
 }

@@ -6,14 +6,14 @@ import (
 	"strings"
 )
 
-// Model is the top-level Collada object
-type Model struct {
-	Geometries []Geometry `xml:"library_geometries"`
+// Collada is the top-level Collada object
+type Collada struct {
+	Geometries []Geometry `xml:"library_geometries>geometry"`
 }
 
 // Geometry represents Collada's geometry
 type Geometry struct {
-	Mesh []Mesh `xml:"mesh"`
+	Mesh Mesh   `xml:"mesh"`
 	ID   string `xml:"id,attr"`
 	Name string `xml:"name,attr"`
 }
@@ -27,8 +27,9 @@ type Mesh struct {
 
 // Source links to other sources where data is present
 type Source struct {
-	ID   string   `xml:"id,attr"`
-	Data []Floats `xml:"float_array"`
+	ID     string `xml:"id,attr"`
+	Floats Floats `xml:"float_array"`
+	// technique_common define accessing rules, add if needed
 }
 
 // Floats is the array of floats
