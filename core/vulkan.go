@@ -773,7 +773,7 @@ var constant float32
 func (v *VulkanRenderer) updateUniformBuffers(imageIdx uint32) {
 	constant += 0.005
 	ubo := model.Uniform{
-		Model:      glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
+		Model:      glm.HomogRotate3D(constant, glm.Vec3{0, 1, 0}),
 		View:       glm.LookAt(2, 2, 2, 0, 0, 0, 0, 0, 1),
 		Projection: glm.Perspective(45, (float32)(v.currentSurfaceWidth)/(float32)(v.currentSurfaceHeight), 0.1, 10),
 	}
@@ -1200,7 +1200,7 @@ func (v *VulkanRenderer) createPipeline() error {
 		},
 		PRasterizationState: &vk.PipelineRasterizationStateCreateInfo{
 			SType:       vk.StructureTypePipelineRasterizationStateCreateInfo,
-			PolygonMode: vk.PolygonModeLine, // vk.PolygonModeFill,
+			PolygonMode: vk.PolygonModeFill,
 			CullMode:    vk.CullModeFlags(vk.CullModeBackBit),
 			FrontFace:   vk.FrontFaceClockwise,
 			LineWidth:   1.0,

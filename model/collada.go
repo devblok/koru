@@ -26,16 +26,12 @@ func ImportColladaObject(fileContents []byte) (Object, error) {
 	}
 
 	var vertices []Vertex
-	stride := 6
+	stride := 2
 	for idx := 0; idx < len(mesh.Triangles.Index)/stride; idx++ {
 		var vert Vertex
-		indices := mesh.Triangles.Index[stride*idx : (stride*idx)+stride]
-		vert.Pos = glm.Vec3{
-			source.Floats.Data[indices[0]],
-			source.Floats.Data[indices[1]],
-			source.Floats.Data[indices[2]],
-			// Other 3 elements is a Vec3 for the vertice's normal
-		}
+		vertIdx := mesh.Triangles.Index[stride*idx : (stride*idx)+stride][0] // element pos 1 is a normal
+		floats := source.Floats.Data[vertIdx*3 : (vertIdx*3)+3]
+		vert.Pos = glm.Vec3{floats[0], floats[1], floats[2]}
 		vert.Color = glm.Vec4{1.0, 1.0, 0.0, 1.0}
 		vertices = append(vertices, vert)
 	}
