@@ -777,7 +777,7 @@ func (v *VulkanRenderer) updateUniformBuffers(imageIdx uint32) {
 		View:       glm.LookAt(2, 2, 2, 0, 0, 0, 0, 0, 1),
 		Projection: glm.Perspective(45, (float32)(v.currentSurfaceWidth)/(float32)(v.currentSurfaceHeight), 0.1, 10),
 	}
-	//ubo.Projection[5] *= -1 // Flip from OpenGl to Vulkan projection
+	ubo.Projection[5] *= -1 // Flip from OpenGl to Vulkan projection
 
 	var mappedMemory unsafe.Pointer
 	vk.MapMemory(v.logicalDevice, v.uniformBuffersMemory[imageIdx], 0, vk.DeviceSize(unsafe.Sizeof(ubo)), 0, &mappedMemory)
@@ -792,6 +792,9 @@ func (v *VulkanRenderer) updateUniformBuffers(imageIdx uint32) {
 
 // Draw implements interface
 func (v *VulkanRenderer) Draw() error {
+	vk.WaitForFences(v.logicalDevice, 1, []vk.Fence{v.imageFence}, 0, 0)
+	vk.ResetFences(v.logicalDevice, 1, []vk.Fence{v.imageFence})
+
 	if result := vk.AcquireNextImage(v.logicalDevice, v.swapchain, math.MaxUint64, v.imageAvailableSemaphore, nil, &v.imageIndex); result == vk.ErrorOutOfDate {
 		if err := v.recreatePipeline(); err != nil {
 			return err
@@ -814,7 +817,7 @@ func (v *VulkanRenderer) Draw() error {
 		PSignalSemaphores:    []vk.Semaphore{v.renderFinishedSemphore},
 	}}
 
-	if err := vk.Error(vk.QueueSubmit(v.deviceQueue, 1, submit, nil)); err != nil {
+	if err := vk.Error(vk.QueueSubmit(v.deviceQueue, 1, submit, v.imageFence)); err != nil {
 		return err
 	}
 
@@ -1005,6 +1008,7 @@ func (v *VulkanRenderer) createSynchronization() error {
 	}
 	fci := vk.FenceCreateInfo{
 		SType: vk.StructureTypeFenceCreateInfo,
+		Flags: vk.FenceCreateFlags(vk.FenceCreateSignaledBit),
 	}
 
 	var (
