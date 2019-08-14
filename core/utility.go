@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"image"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,4 +74,22 @@ func safeStrings(sgs []string) []string {
 		safe = append(safe, fmt.Sprintf("%s\x00", s))
 	}
 	return safe
+}
+
+func getPixels(img image.Image) ([]byte, error) {
+	bounds := img.Bounds()
+	width, height := bounds.Max.X, bounds.Max.Y
+
+	var pixels []byte
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			r, g, b, a := img.At(x, y).RGBA()
+			pixels = append(pixels, byte(r/257))
+			pixels = append(pixels, byte(g/257))
+			pixels = append(pixels, byte(b/257))
+			pixels = append(pixels, byte(a/257))
+		}
+	}
+
+	return pixels, nil
 }

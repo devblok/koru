@@ -1,6 +1,7 @@
 package model
 
 import (
+	"image"
 	"unsafe"
 
 	glm "github.com/go-gl/mathgl/mgl32"
@@ -29,12 +30,22 @@ type Object interface {
 	// Vertices returns the vertices for Renderer use,
 	// so it has to match the descriptors exactly
 	Vertices() []Vertex
+
+	// Texture returns the raw data of a color texture image
+	// for use in the Renderer
+	Texture() image.Image
+
+	// NormalMap returns the raw data of a normal map
+	// for use in the Renderer
+	NormalMap() []byte
 }
 
 // Vertex is a model vertex
 type Vertex struct {
-	Pos   glm.Vec3
-	Color glm.Vec4
+	Pos    glm.Vec3
+	Normal glm.Vec3
+	Color  glm.Vec4
+	Tex    glm.Vec2
 }
 
 // Uniform defines a model-view-projection object
@@ -67,6 +78,12 @@ func VertexAttributeDescriptions() []vk.VertexInputAttributeDescription {
 			Location: 1,
 			Format:   vk.FormatR32g32b32a32Sfloat,
 			Offset:   uint32(unsafe.Offsetof(Vertex{}.Color)),
+		},
+		{
+			Binding:  0,
+			Location: 2,
+			Format:   vk.FormatR32g32Sfloat,
+			Offset:   uint32(unsafe.Offsetof(Vertex{}.Tex)),
 		},
 	}
 }

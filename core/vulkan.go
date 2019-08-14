@@ -3,8 +3,11 @@ package core
 import (
 	"errors"
 	"fmt"
+	"image"
+	"image/jpeg"
 	"io/ioutil"
 	"math"
+	"os"
 	"strings"
 	"unsafe"
 
@@ -187,9 +190,20 @@ func NewVulkanRenderer(instance Instance, cfg RendererConfiguration) (Renderer, 
 		return nil, err
 	}
 
-	obj, err := model.ImportColladaObject(data)
+	textureFile, err := os.Open("assets/rust.jpeg")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("texture file open failed: %s", err.Error())
+	}
+
+	img, err := jpeg.Decode(textureFile)
+	if err != nil {
+		return nil, fmt.Errorf("jpeg decode failed: %s", err.Error())
+	}
+	textureFile.Close()
+
+	obj, err := model.ImportColladaObject(data, img)
+	if err != nil {
+		return nil, fmt.Errorf("collada import failed: %s", err.Error())
 	}
 
 	return &VulkanRenderer{
@@ -199,20 +213,7 @@ func NewVulkanRenderer(instance Instance, cfg RendererConfiguration) (Renderer, 
 		surface:              instance.Surface(),
 		physicalDevice:       instance.AvailableDevices()[0],
 		vertices:             obj.Vertices(),
-		// vertices: []model.Vertex{
-		// 	model.Vertex{
-		// 		Pos:   glm.Vec2{0.0, -0.5},
-		// 		Color: glm.Vec4{1.0, 0.0, 0.0, 1.0},
-		// 	},
-		// 	model.Vertex{
-		// 		Pos:   glm.Vec2{0.5, 0.5},
-		// 		Color: glm.Vec4{0.0, 1.0, 0.0, 1.0},
-		// 	},
-		// 	model.Vertex{
-		// 		Pos:   glm.Vec2{-0.5, 0.5},
-		// 		Color: glm.Vec4{0.0, 0.0, 1.0, 1.0},
-		// 	},
-		// },
+		texture:              obj.Texture(),
 	}, nil
 }
 
@@ -274,6 +275,15 @@ type VulkanRenderer struct {
 	vertexMemory         vk.DeviceMemory
 	uniformBuffers       []vk.Buffer
 	uniformBuffersMemory []vk.DeviceMemory
+
+	texture            image.Image
+	textureBuffer      vk.Buffer
+	textureMemory      vk.DeviceMemory
+	textureImage       vk.Image
+	textureImageMemory vk.DeviceMemory
+	textureImageView   vk.ImageView
+
+	textureSampler vk.Sampler
 }
 
 // Initialise implements interface
@@ -456,6 +466,18 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
+	if err := v.createTextureImage(); err != nil {
+		return err
+	}
+
+	if err := v.createTextureImageView(); err != nil {
+		return err
+	}
+
+	if err := v.createTextureSampler(); err != nil {
+		return err
+	}
+
 	if err := v.createVertexBuffers(); err != nil {
 		return err
 	}
@@ -489,6 +511,311 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
+	return nil
+}
+
+func (v *VulkanRenderer) createTextureSampler() error {
+	sci := vk.SamplerCreateInfo{
+		SType:                   vk.StructureTypeSamplerCreateInfo,
+		MagFilter:               vk.FilterLinear,
+		MinFilter:               vk.FilterLinear,
+		AddressModeU:            vk.SamplerAddressModeRepeat,
+		AddressModeV:            vk.SamplerAddressModeRepeat,
+		AddressModeW:            vk.SamplerAddressModeRepeat,
+		AnisotropyEnable:        vk.True,
+		MaxAnisotropy:           16,
+		BorderColor:             vk.BorderColorFloatOpaqueBlack,
+		UnnormalizedCoordinates: vk.False,
+		CompareEnable:           vk.False,
+		CompareOp:               vk.CompareOpAlways,
+		MipmapMode:              vk.SamplerMipmapModeLinear,
+		MipLodBias:              0,
+		MinLod:                  0,
+		MaxLod:                  0,
+	}
+
+	var textureSampler vk.Sampler
+	if err := vk.Error(vk.CreateSampler(v.logicalDevice, &sci, nil, &textureSampler)); err != nil {
+		return fmt.Errorf("vk.CreateSampler(): %s", err.Error())
+	}
+	v.textureSampler = textureSampler
+
+	return nil
+}
+
+func (v *VulkanRenderer) createTextureImage() error {
+	bounds := v.texture.Bounds()
+	bufSize := bounds.Max.X * bounds.Max.Y * 4
+
+	var (
+		textureBuffer vk.Buffer
+		textureMemory vk.DeviceMemory
+	)
+
+	bci := vk.BufferCreateInfo{
+		SType:       vk.StructureTypeBufferCreateInfo,
+		Size:        vk.DeviceSize(bufSize),
+		Usage:       vk.BufferUsageFlags(vk.BufferUsageTransferSrcBit),
+		SharingMode: vk.SharingModeExclusive,
+	}
+	if err := vk.Error(vk.CreateBuffer(v.logicalDevice, &bci, nil, &textureBuffer)); err != nil {
+		return fmt.Errorf("vk.CreateBuffer(): %s", err.Error())
+	}
+
+	var memoryRequirements vk.MemoryRequirements
+	vk.GetBufferMemoryRequirements(v.logicalDevice, textureBuffer, &memoryRequirements)
+	memoryRequirements.Deref()
+	memTypeIdx, err := findMemoryType(v.physicalDevice, memoryRequirements.MemoryTypeBits, vk.MemoryPropertyFlags(vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit))
+	if err != nil {
+		return err
+	}
+
+	mai := vk.MemoryAllocateInfo{
+		SType:           vk.StructureTypeMemoryAllocateInfo,
+		AllocationSize:  memoryRequirements.Size,
+		MemoryTypeIndex: memTypeIdx,
+	}
+
+	if err := vk.Error(vk.AllocateMemory(v.logicalDevice, &mai, nil, &textureMemory)); err != nil {
+		return fmt.Errorf("vk.AllocateMemory(): %s", err.Error())
+	}
+
+	vk.BindBufferMemory(v.logicalDevice, textureBuffer, textureMemory, 0)
+
+	v.textureBuffer = textureBuffer
+	v.textureMemory = textureMemory
+
+	pixels, err := getPixels(v.texture)
+	if err != nil {
+		return err
+	}
+
+	var mappedMemory unsafe.Pointer
+	vk.MapMemory(v.logicalDevice, textureMemory, 0, vk.DeviceSize(bufSize), 0, &mappedMemory)
+	castMappedMemory := *(*[]byte)(unsafe.Pointer(&sliceHeader{
+		Data: uintptr(mappedMemory),
+		Cap:  bufSize,
+		Len:  bufSize,
+	}))
+	copy(castMappedMemory, pixels[:])
+	vk.UnmapMemory(v.logicalDevice, textureMemory)
+
+	var (
+		textureImage       vk.Image
+		textureImageMemory vk.DeviceMemory
+	)
+
+	ici := vk.ImageCreateInfo{
+		SType:     vk.StructureTypeImageCreateInfo,
+		ImageType: vk.ImageType2d,
+		Extent: vk.Extent3D{
+			Width:  uint32(bounds.Max.X),
+			Height: uint32(bounds.Max.Y),
+			Depth:  1,
+		},
+		MipLevels:     1,
+		ArrayLayers:   1,
+		Format:        vk.FormatR8g8b8a8Snorm,
+		Tiling:        vk.ImageTilingOptimal,
+		InitialLayout: vk.ImageLayoutUndefined,
+		Usage:         vk.ImageUsageFlags(vk.ImageUsageTransferDstBit | vk.ImageUsageSampledBit),
+		SharingMode:   vk.SharingModeExclusive,
+		Samples:       vk.SampleCount1Bit,
+	}
+
+	if err := vk.Error(vk.CreateImage(v.logicalDevice, &ici, nil, &textureImage)); err != nil {
+		return fmt.Errorf("vk.CreateImage(): %s", err.Error())
+	}
+
+	var memRequirements vk.MemoryRequirements
+	vk.GetImageMemoryRequirements(v.logicalDevice, textureImage, &memRequirements)
+	memRequirements.Deref()
+
+	memIdx, err := findMemoryType(v.physicalDevice, memRequirements.MemoryTypeBits, vk.MemoryPropertyFlags(vk.MemoryPropertyDeviceLocalBit))
+	if err != nil {
+		return err
+	}
+
+	allocInfo := vk.MemoryAllocateInfo{
+		SType:           vk.StructureTypeMemoryAllocateInfo,
+		AllocationSize:  memRequirements.Size,
+		MemoryTypeIndex: memIdx,
+	}
+
+	if err := vk.Error(vk.AllocateMemory(v.logicalDevice, &allocInfo, nil, &textureImageMemory)); err != nil {
+		return fmt.Errorf("vk.AllocateMemory(): %s", err.Error())
+	}
+
+	vk.BindImageMemory(v.logicalDevice, textureImage, textureImageMemory, 0)
+
+	v.textureImage = textureImage
+	v.textureImageMemory = textureImageMemory
+
+	if err := v.transitionLayout(textureImage, vk.FormatR8g8b8a8Unorm, vk.ImageLayoutUndefined, vk.ImageLayoutTransferDstOptimal); err != nil {
+		return err
+	}
+
+	if err := v.copyBufferToImage(textureBuffer, textureImage, uint32(bounds.Max.X), uint32(bounds.Max.Y)); err != nil {
+		return err
+	}
+
+	if err := v.transitionLayout(textureImage, vk.FormatR8g8b8a8Unorm, vk.ImageLayoutTransferDstOptimal, vk.ImageLayoutShaderReadOnlyOptimal); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (v *VulkanRenderer) createTextureImageView() error {
+	ivci := vk.ImageViewCreateInfo{
+		SType:    vk.StructureTypeImageViewCreateInfo,
+		Image:    v.textureImage,
+		ViewType: vk.ImageViewType2d,
+		Format:   vk.FormatR8g8b8a8Unorm,
+		SubresourceRange: vk.ImageSubresourceRange{
+			AspectMask:     vk.ImageAspectFlags(vk.ImageAspectColorBit),
+			BaseMipLevel:   0,
+			LevelCount:     1,
+			BaseArrayLayer: 0,
+			LayerCount:     1,
+		},
+	}
+
+	var textureImageView vk.ImageView
+	if err := vk.Error(vk.CreateImageView(v.logicalDevice, &ivci, nil, &textureImageView)); err != nil {
+		return fmt.Errorf("vk.CreateImageView(): %s", err.Error())
+	}
+	v.textureImageView = textureImageView
+
+	return nil
+}
+
+func (v *VulkanRenderer) beginSingleTimeCommands() (vk.CommandBuffer, error) {
+	cbai := vk.CommandBufferAllocateInfo{
+		SType:              vk.StructureTypeCommandBufferAllocateInfo,
+		Level:              vk.CommandBufferLevelPrimary,
+		CommandPool:        v.commandPool,
+		CommandBufferCount: 1,
+	}
+
+	var commandBuffer vk.CommandBuffer
+	if err := vk.Error(vk.AllocateCommandBuffers(v.logicalDevice, &cbai, []vk.CommandBuffer{commandBuffer})); err != nil {
+		return nil, fmt.Errorf("vk.AllocateCommandBuffers(): %s", err.Error())
+	}
+
+	cbbi := vk.CommandBufferBeginInfo{
+		SType: vk.StructureTypeCommandBufferBeginInfo,
+		Flags: vk.CommandBufferUsageFlags(vk.CommandBufferUsageOneTimeSubmitBit),
+	}
+
+	if err := vk.Error(vk.BeginCommandBuffer(commandBuffer, &cbbi)); err != nil {
+		vk.FreeCommandBuffers(v.logicalDevice, v.commandPool, 1, []vk.CommandBuffer{commandBuffer})
+		return nil, fmt.Errorf("vk.BeginCommandBuffer(): %s", err.Error())
+	}
+
+	return commandBuffer, nil
+}
+
+func (v *VulkanRenderer) endSingleTimeCommands(commandBuffer vk.CommandBuffer) error {
+	if err := vk.Error(vk.EndCommandBuffer(commandBuffer)); err != nil {
+		return fmt.Errorf("vk.EndCommandBuffer(): %s", err.Error())
+	}
+
+	si := vk.SubmitInfo{
+		SType:              vk.StructureTypeSubmitInfo,
+		CommandBufferCount: 1,
+		PCommandBuffers:    []vk.CommandBuffer{commandBuffer},
+	}
+
+	if err := vk.Error(vk.QueueSubmit(v.deviceQueue, 1, []vk.SubmitInfo{si}, nil)); err != nil {
+		return fmt.Errorf("vk.QueueSubmit(): %s", err.Error())
+	}
+
+	vk.QueueWaitIdle(v.deviceQueue)
+
+	vk.FreeCommandBuffers(v.logicalDevice, v.commandPool, 1, []vk.CommandBuffer{commandBuffer})
+	return nil
+}
+
+func (v *VulkanRenderer) transitionLayout(img vk.Image, format vk.Format, old vk.ImageLayout, new vk.ImageLayout) error {
+	cmd, err := v.beginSingleTimeCommands()
+	if err != nil {
+		return err
+	}
+
+	barrier := vk.ImageMemoryBarrier{
+		SType:               vk.StructureTypeImageMemoryBarrier,
+		OldLayout:           old,
+		NewLayout:           new,
+		SrcQueueFamilyIndex: vk.QueueFamilyIgnored,
+		DstQueueFamilyIndex: vk.QueueFamilyIgnored,
+		Image:               img,
+		SubresourceRange: vk.ImageSubresourceRange{
+			BaseMipLevel:   0,
+			LevelCount:     1,
+			BaseArrayLayer: 0,
+			LayerCount:     1,
+		},
+	}
+
+	var srcStage, dstStage vk.PipelineStageFlags
+	if old == vk.ImageLayoutUndefined && new == vk.ImageLayoutTransferDstOptimal {
+		barrier.SrcAccessMask = 0
+		barrier.DstAccessMask = vk.AccessFlags(vk.AccessTransferWriteBit)
+		srcStage = vk.PipelineStageFlags(vk.PipelineStageTopOfPipeBit)
+		dstStage = vk.PipelineStageFlags(vk.PipelineStageTransferBit)
+	} else if old == vk.ImageLayoutTransferDstOptimal && new == vk.ImageLayoutShaderReadOnlyOptimal {
+		barrier.SrcAccessMask = vk.AccessFlags(vk.AccessTransferWriteBit)
+		barrier.DstAccessMask = vk.AccessFlags(vk.AccessShaderReadBit)
+		srcStage = vk.PipelineStageFlags(vk.PipelineStageTransferBit)
+		dstStage = vk.PipelineStageFlags(vk.PipelineStageFragmentShaderBit)
+	} else {
+		return fmt.Errorf("unsupported layout transition")
+	}
+
+	vk.CmdPipelineBarrier(cmd, srcStage, dstStage, 0, 0, nil, 0, nil, 1, []vk.ImageMemoryBarrier{barrier})
+
+	if err := v.endSingleTimeCommands(cmd); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (v *VulkanRenderer) copyBuffer(src, dst vk.Buffer, size vk.DeviceSize) error {
+	cmd, err := v.beginSingleTimeCommands()
+	if err != nil {
+		return err
+	}
+
+	bc := vk.BufferCopy{
+		Size: size,
+	}
+	vk.CmdCopyBuffer(cmd, src, dst, 1, []vk.BufferCopy{bc})
+
+	if err := v.endSingleTimeCommands(cmd); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (v *VulkanRenderer) copyBufferToImage(buf vk.Buffer, img vk.Image, width, height uint32) error {
+	cmd, err := v.beginSingleTimeCommands()
+	if err != nil {
+		return err
+	}
+
+	bic := vk.BufferImageCopy{
+		ImageOffset: vk.Offset3D{},
+		ImageExtent: vk.Extent3D{
+			Height: height,
+			Width:  width,
+		},
+	}
+	vk.CmdCopyBufferToImage(cmd, buf, img, vk.ImageLayoutTransferDstOptimal, 1, []vk.BufferImageCopy{bic})
+
+	if err := v.endSingleTimeCommands(cmd); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -792,7 +1119,7 @@ func (v *VulkanRenderer) updateUniformBuffers(imageIdx uint32) {
 
 // Draw implements interface
 func (v *VulkanRenderer) Draw() error {
-	vk.WaitForFences(v.logicalDevice, 1, []vk.Fence{v.imageFence}, 0, 0)
+	vk.WaitForFences(v.logicalDevice, 1, []vk.Fence{v.imageFence}, 0, math.MaxUint32)
 	vk.ResetFences(v.logicalDevice, 1, []vk.Fence{v.imageFence})
 
 	if result := vk.AcquireNextImage(v.logicalDevice, v.swapchain, math.MaxUint64, v.imageAvailableSemaphore, nil, &v.imageIndex); result == vk.ErrorOutOfDate {
@@ -821,13 +1148,12 @@ func (v *VulkanRenderer) Draw() error {
 		return err
 	}
 
-	swapchains := []vk.Swapchain{v.swapchain}
 	presentInfo := vk.PresentInfo{
 		SType:              vk.StructureTypePresentInfo,
 		WaitSemaphoreCount: 1,
 		PWaitSemaphores:    []vk.Semaphore{v.renderFinishedSemphore},
 		SwapchainCount:     1,
-		PSwapchains:        swapchains,
+		PSwapchains:        []vk.Swapchain{v.swapchain},
 		PImageIndices:      []uint32{v.imageIndex},
 	}
 
@@ -894,7 +1220,12 @@ func (v *VulkanRenderer) createDescriptorSets() error {
 			Offset: 0,
 			Range:  vk.DeviceSize(unsafe.Sizeof(model.Uniform{})),
 		}
-		wds := vk.WriteDescriptorSet{
+		dii := vk.DescriptorImageInfo{
+			ImageLayout: vk.ImageLayoutShaderReadOnlyOptimal,
+			ImageView:   v.textureImageView,
+			Sampler:     v.textureSampler,
+		}
+		wds := []vk.WriteDescriptorSet{{
 			SType:           vk.StructureTypeWriteDescriptorSet,
 			DstSet:          descriptorSets[idx],
 			DstBinding:      0,
@@ -902,8 +1233,17 @@ func (v *VulkanRenderer) createDescriptorSets() error {
 			DescriptorType:  vk.DescriptorTypeUniformBuffer,
 			DescriptorCount: 1,
 			PBufferInfo:     []vk.DescriptorBufferInfo{dbi},
-		}
-		vk.UpdateDescriptorSets(v.logicalDevice, 1, []vk.WriteDescriptorSet{wds}, 0, nil)
+		}, vk.WriteDescriptorSet{
+			SType:           vk.StructureTypeWriteDescriptorSet,
+			DstSet:          descriptorSets[idx],
+			DstBinding:      1,
+			DstArrayElement: 0,
+			DescriptorType:  vk.DescriptorTypeCombinedImageSampler,
+			DescriptorCount: 1,
+			PBufferInfo:     []vk.DescriptorBufferInfo{dbi},
+			PImageInfo:      []vk.DescriptorImageInfo{dii},
+		}}
+		vk.UpdateDescriptorSets(v.logicalDevice, uint32(len(wds)), wds, 0, nil)
 	}
 	v.descriptorSets = descriptorSets
 	return nil
@@ -914,10 +1254,15 @@ func (v *VulkanRenderer) prepareDescriptorPool() error {
 		SType:         vk.StructureTypeDescriptorPoolCreateInfo,
 		MaxSets:       uint32(len(v.swapchainImages)),
 		PoolSizeCount: 1,
-		PPoolSizes: []vk.DescriptorPoolSize{{
-			Type:            vk.DescriptorTypeUniformBuffer,
-			DescriptorCount: uint32(len(v.swapchainImages)),
-		}},
+		PPoolSizes: []vk.DescriptorPoolSize{
+			{
+				Type:            vk.DescriptorTypeUniformBuffer,
+				DescriptorCount: uint32(len(v.swapchainImages)),
+			},
+			{
+				Type:            vk.DescriptorTypeCombinedImageSampler,
+				DescriptorCount: uint32(len(v.swapchainImages)),
+			}},
 	}
 
 	var descriptorPool vk.DescriptorPool
@@ -1340,6 +1685,12 @@ func (v *VulkanRenderer) createPipelineLayout() error {
 				StageFlags:      vk.ShaderStageFlags(vk.ShaderStageVertexBit),
 				Binding:         0,
 			},
+			vk.DescriptorSetLayoutBinding{
+				DescriptorCount: 1,
+				DescriptorType:  vk.DescriptorTypeCombinedImageSampler,
+				StageFlags:      vk.ShaderStageFlags(vk.ShaderStageFragmentBit),
+				Binding:         1,
+			},
 		},
 	}
 
@@ -1532,6 +1883,14 @@ func (v *VulkanRenderer) Destroy() {
 	vk.FreeMemory(v.logicalDevice, v.depthImageMemory, nil)
 	vk.DestroyImageView(v.logicalDevice, v.depthImageView, nil)
 	vk.DestroyImage(v.logicalDevice, v.depthImage, nil)
+
+	vk.FreeMemory(v.logicalDevice, v.textureMemory, nil)
+	vk.DestroyBuffer(v.logicalDevice, v.textureBuffer, nil)
+	vk.FreeMemory(v.logicalDevice, v.textureImageMemory, nil)
+	vk.DestroyImageView(v.logicalDevice, v.textureImageView, nil)
+	vk.DestroyImage(v.logicalDevice, v.textureImage, nil)
+
+	vk.DestroySampler(v.logicalDevice, v.textureSampler, nil)
 
 	vk.DestroySwapchain(v.logicalDevice, v.swapchain, nil)
 	vk.DestroyDevice(v.logicalDevice, nil)

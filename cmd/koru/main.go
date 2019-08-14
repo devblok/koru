@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
+	"os"
 	"runtime"
+	"runtime/pprof"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -25,6 +28,12 @@ var (
 	sdlSurface unsafe.Pointer
 
 	frameCounter int64
+)
+
+// Profiling
+var (
+	cpuProfile = flag.String("cpuprof", "", "Profile CPU usage to file")
+	memProfile = flag.String("memprof", "", "Profile memory usage into a file")
 )
 
 var configuration = core.Configuration{
@@ -59,6 +68,19 @@ func handleWindowEvent(event *sdl.WindowEvent) {
 }
 
 func main() {
+	flag.Parse()
+
+	if *cpuProfile != "" {
+		f, err := os.Create(*cpuProfile)
+		if err != nil {
+			panic(err)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			panic(err)
+		}
+	}
+	defer pprof.StopCPUProfile()
+
 	if err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS); err != nil {
 		panic(err)
 	}
@@ -155,6 +177,16 @@ EventLoop:
 				log.Println("Draw error: " + err.Error())
 			}
 			atomic.AddInt64(&frameCounter, 1)
+		}
+	}
+
+	if *memProfile != "" {
+		f, err := os.Create(*memProfile)
+		if err != nil {
+			panic(err)
+		}
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			panic(err)
 		}
 	}
 }
