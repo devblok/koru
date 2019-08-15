@@ -35,25 +35,20 @@ func ImportColladaObject(fileContents []byte, texture image.Image) (Object, erro
 		for vIdx, v := range vertIdx {
 			switch inputs[uint(vIdx)].Semantic {
 			case "VERTEX":
-				source, err := findSource(mesh.Source, "positions")
+				vertSrc := mesh.Vertices.Inputs[0].Source
+				source, err := findSource(mesh.Source, vertSrc)
 				if err != nil {
 					return nil, err
 				}
 				vert.Pos = source.GetVec3(v)
 			case "NORMAL":
-				source, err := findSource(mesh.Source, "normals")
+				source, err := findSource(mesh.Source, inputs[uint(vIdx)].Source)
 				if err != nil {
 					return nil, err
 				}
 				vert.Normal = source.GetVec3(v)
 			case "TEXCOORD":
-				var sourceType string
-				if inputs[uint(vIdx)].Set == 0 {
-					sourceType = "map"
-				} else {
-					sourceType = fmt.Sprintf("%s-%d", "map", inputs[uint(vIdx)].Set)
-				}
-				source, err := findSource(mesh.Source, sourceType)
+				source, err := findSource(mesh.Source, inputs[uint(vIdx)].Source)
 				if err != nil {
 					return nil, err
 				}
@@ -125,13 +120,13 @@ func (co *ColladaObject) NormalMap() []byte {
 	return []byte{}
 }
 
-func findSource(sources []Source, dataType string) (Source, error) {
+func findSource(sources []Source, id string) (Source, error) {
 	for _, s := range sources {
-		if strings.HasSuffix(s.ID, fmt.Sprintf("-%s", dataType)) {
+		if strings.Compare(s.ID, id[1:]) == 0 {
 			return s, nil
 		}
 	}
-	return Source{}, fmt.Errorf("source type: %s not found", dataType)
+	return Source{}, fmt.Errorf("source type: %s not found", id[1:])
 }
 
 // Collada is the top-level Collada object

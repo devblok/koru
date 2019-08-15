@@ -466,6 +466,14 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
+	if err := v.createVertexBuffers(); err != nil {
+		return err
+	}
+
+	if err := v.createUniformBuffers(); err != nil {
+		return err
+	}
+
 	if err := v.createTextureImage(); err != nil {
 		return err
 	}
@@ -475,14 +483,6 @@ func (v *VulkanRenderer) Initialise() error {
 	}
 
 	if err := v.createTextureSampler(); err != nil {
-		return err
-	}
-
-	if err := v.createVertexBuffers(); err != nil {
-		return err
-	}
-
-	if err := v.createUniformBuffers(); err != nil {
 		return err
 	}
 
@@ -522,7 +522,7 @@ func (v *VulkanRenderer) createTextureSampler() error {
 		AddressModeU:            vk.SamplerAddressModeRepeat,
 		AddressModeV:            vk.SamplerAddressModeRepeat,
 		AddressModeW:            vk.SamplerAddressModeRepeat,
-		AnisotropyEnable:        vk.True,
+		AnisotropyEnable:        vk.False, // TODO: figure out anistropy
 		MaxAnisotropy:           16,
 		BorderColor:             vk.BorderColorFloatOpaqueBlack,
 		UnnormalizedCoordinates: vk.False,
@@ -671,7 +671,7 @@ func (v *VulkanRenderer) createTextureImageView() error {
 		SType:    vk.StructureTypeImageViewCreateInfo,
 		Image:    v.textureImage,
 		ViewType: vk.ImageViewType2d,
-		Format:   vk.FormatR8g8b8a8Unorm,
+		Format:   vk.FormatR8g8b8a8Snorm,
 		SubresourceRange: vk.ImageSubresourceRange{
 			AspectMask:     vk.ImageAspectFlags(vk.ImageAspectColorBit),
 			BaseMipLevel:   0,
@@ -698,10 +698,11 @@ func (v *VulkanRenderer) beginSingleTimeCommands() (vk.CommandBuffer, error) {
 		CommandBufferCount: 1,
 	}
 
-	var commandBuffer vk.CommandBuffer
-	if err := vk.Error(vk.AllocateCommandBuffers(v.logicalDevice, &cbai, []vk.CommandBuffer{commandBuffer})); err != nil {
+	commandBuffers := make([]vk.CommandBuffer, 1)
+	if err := vk.Error(vk.AllocateCommandBuffers(v.logicalDevice, &cbai, commandBuffers)); err != nil {
 		return nil, fmt.Errorf("vk.AllocateCommandBuffers(): %s", err.Error())
 	}
+	commandBuffer := commandBuffers[0]
 
 	cbbi := vk.CommandBufferBeginInfo{
 		SType: vk.StructureTypeCommandBufferBeginInfo,
@@ -755,6 +756,7 @@ func (v *VulkanRenderer) transitionLayout(img vk.Image, format vk.Format, old vk
 			LevelCount:     1,
 			BaseArrayLayer: 0,
 			LayerCount:     1,
+			AspectMask:     vk.ImageAspectFlags(vk.ImageAspectColorBit),
 		},
 	}
 
@@ -809,6 +811,13 @@ func (v *VulkanRenderer) copyBufferToImage(buf vk.Buffer, img vk.Image, width, h
 		ImageExtent: vk.Extent3D{
 			Height: height,
 			Width:  width,
+			Depth:  1,
+		},
+		ImageSubresource: vk.ImageSubresourceLayers{
+			AspectMask:     vk.ImageAspectFlags(vk.ImageAspectColorBit),
+			MipLevel:       0,
+			BaseArrayLayer: 0,
+			LayerCount:     1,
 		},
 	}
 	vk.CmdCopyBufferToImage(cmd, buf, img, vk.ImageLayoutTransferDstOptimal, 1, []vk.BufferImageCopy{bic})
@@ -1233,14 +1242,13 @@ func (v *VulkanRenderer) createDescriptorSets() error {
 			DescriptorType:  vk.DescriptorTypeUniformBuffer,
 			DescriptorCount: 1,
 			PBufferInfo:     []vk.DescriptorBufferInfo{dbi},
-		}, vk.WriteDescriptorSet{
+		}, {
 			SType:           vk.StructureTypeWriteDescriptorSet,
 			DstSet:          descriptorSets[idx],
 			DstBinding:      1,
 			DstArrayElement: 0,
 			DescriptorType:  vk.DescriptorTypeCombinedImageSampler,
 			DescriptorCount: 1,
-			PBufferInfo:     []vk.DescriptorBufferInfo{dbi},
 			PImageInfo:      []vk.DescriptorImageInfo{dii},
 		}}
 		vk.UpdateDescriptorSets(v.logicalDevice, uint32(len(wds)), wds, 0, nil)
@@ -1250,19 +1258,20 @@ func (v *VulkanRenderer) createDescriptorSets() error {
 }
 
 func (v *VulkanRenderer) prepareDescriptorPool() error {
+	poolSizes := []vk.DescriptorPoolSize{
+		{
+			Type:            vk.DescriptorTypeUniformBuffer,
+			DescriptorCount: uint32(len(v.swapchainImages)),
+		},
+		{
+			Type:            vk.DescriptorTypeCombinedImageSampler,
+			DescriptorCount: uint32(len(v.swapchainImages)),
+		}}
 	dpci := vk.DescriptorPoolCreateInfo{
 		SType:         vk.StructureTypeDescriptorPoolCreateInfo,
-		MaxSets:       uint32(len(v.swapchainImages)),
-		PoolSizeCount: 1,
-		PPoolSizes: []vk.DescriptorPoolSize{
-			{
-				Type:            vk.DescriptorTypeUniformBuffer,
-				DescriptorCount: uint32(len(v.swapchainImages)),
-			},
-			{
-				Type:            vk.DescriptorTypeCombinedImageSampler,
-				DescriptorCount: uint32(len(v.swapchainImages)),
-			}},
+		MaxSets:       uint32(len(v.swapchainImages)) * uint32(len(poolSizes)),
+		PoolSizeCount: uint32(len(poolSizes)),
+		PPoolSizes:    poolSizes,
 	}
 
 	var descriptorPool vk.DescriptorPool
@@ -1551,7 +1560,7 @@ func (v *VulkanRenderer) createPipeline() error {
 			SType:       vk.StructureTypePipelineRasterizationStateCreateInfo,
 			PolygonMode: vk.PolygonModeFill,
 			CullMode:    vk.CullModeFlags(vk.CullModeBackBit),
-			FrontFace:   vk.FrontFaceClockwise,
+			FrontFace:   vk.FrontFaceCounterClockwise,
 			LineWidth:   1.0,
 		},
 		PDepthStencilState: &vk.PipelineDepthStencilStateCreateInfo{
@@ -1675,23 +1684,24 @@ func (v *VulkanRenderer) createSwapchain(oldSwapchain vk.Swapchain) error {
 }
 
 func (v *VulkanRenderer) createPipelineLayout() error {
+	bindings := []vk.DescriptorSetLayoutBinding{
+		vk.DescriptorSetLayoutBinding{
+			DescriptorCount: 1,
+			DescriptorType:  vk.DescriptorTypeUniformBuffer,
+			StageFlags:      vk.ShaderStageFlags(vk.ShaderStageVertexBit),
+			Binding:         0,
+		},
+		vk.DescriptorSetLayoutBinding{
+			DescriptorCount: 1,
+			DescriptorType:  vk.DescriptorTypeCombinedImageSampler,
+			StageFlags:      vk.ShaderStageFlags(vk.ShaderStageFragmentBit),
+			Binding:         1,
+		},
+	}
 	dslci := vk.DescriptorSetLayoutCreateInfo{
 		SType:        vk.StructureTypeDescriptorSetLayoutCreateInfo,
-		BindingCount: 1,
-		PBindings: []vk.DescriptorSetLayoutBinding{
-			vk.DescriptorSetLayoutBinding{
-				DescriptorCount: 1,
-				DescriptorType:  vk.DescriptorTypeUniformBuffer,
-				StageFlags:      vk.ShaderStageFlags(vk.ShaderStageVertexBit),
-				Binding:         0,
-			},
-			vk.DescriptorSetLayoutBinding{
-				DescriptorCount: 1,
-				DescriptorType:  vk.DescriptorTypeCombinedImageSampler,
-				StageFlags:      vk.ShaderStageFlags(vk.ShaderStageFragmentBit),
-				Binding:         1,
-			},
-		},
+		BindingCount: uint32(len(bindings)),
+		PBindings:    bindings,
 	}
 
 	var descriptorSetLayouts []vk.DescriptorSetLayout
