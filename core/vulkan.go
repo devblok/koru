@@ -424,11 +424,6 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
-	// /* Uniform buffers */
-	// if err := v.prepareUniformBuffers(); err != nil {
-	// 	return err
-	// }
-
 	/* Pipeline Layout */
 	if err := v.createPipelineLayout(); err != nil {
 		return err
@@ -1573,7 +1568,7 @@ func (v *VulkanRenderer) createPipeline() error {
 			SType:                 vk.StructureTypePipelineDepthStencilStateCreateInfo,
 			DepthTestEnable:       vk.True,
 			DepthWriteEnable:      vk.True,
-			DepthCompareOp:        vk.CompareOpLessOrEqual,
+			DepthCompareOp:        vk.CompareOpLess,
 			DepthBoundsTestEnable: vk.False,
 			Back: vk.StencilOpState{
 				FailOp:    vk.StencilOpKeep,
@@ -1763,6 +1758,11 @@ func (v *VulkanRenderer) createRenderPass() error {
 		Layout:     vk.ImageLayoutColorAttachmentOptimal,
 	}}
 
+	depthAttachmentRef := vk.AttachmentReference{
+		Attachment: 1,
+		Layout:     vk.ImageLayoutDepthStencilAttachmentOptimal,
+	}
+
 	subpassDependency := vk.SubpassDependency{
 		SrcSubpass:    vk.SubpassExternal,
 		DstSubpass:    0,
@@ -1773,9 +1773,10 @@ func (v *VulkanRenderer) createRenderPass() error {
 	}
 
 	subpass := vk.SubpassDescription{
-		PipelineBindPoint:    vk.PipelineBindPointGraphics,
-		ColorAttachmentCount: uint32(len(colorAttachmentRef)),
-		PColorAttachments:    colorAttachmentRef,
+		PipelineBindPoint:       vk.PipelineBindPointGraphics,
+		ColorAttachmentCount:    uint32(len(colorAttachmentRef)),
+		PColorAttachments:       colorAttachmentRef,
+		PDepthStencilAttachment: &depthAttachmentRef,
 	}
 
 	rpci := vk.RenderPassCreateInfo{
