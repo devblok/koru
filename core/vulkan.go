@@ -288,7 +288,6 @@ type VulkanRenderer struct {
 
 // Initialise implements interface
 func (v *VulkanRenderer) Initialise() error {
-	// TODO: Make extension name escaping bearable
 	requiredExtensions := []string{
 		vk.KhrSwapchainExtensionName,
 	}
@@ -366,6 +365,9 @@ func (v *VulkanRenderer) Initialise() error {
 		PQueueCreateInfos:       queueInfos,
 		EnabledExtensionCount:   uint32(len(requiredExtensions)),
 		PpEnabledExtensionNames: safeStrings(requiredExtensions),
+		PEnabledFeatures: []vk.PhysicalDeviceFeatures{{
+			SamplerAnisotropy: vk.True,
+		}},
 	}
 	if err := vk.Error(vk.CreateDevice(v.physicalDevice, &dci, nil, &vkDevice)); err != nil {
 		return errors.New("vk.CreateDevice(): " + err.Error())
@@ -414,10 +416,6 @@ func (v *VulkanRenderer) Initialise() error {
 
 	/* Viewport and scissors creation */
 	v.createViewport()
-
-	// TODO: Depth and stencil testing VkPipelineDepthStencilStateCreateInfo
-	// TODO: When making dynamic state changes refer to  VkPipelineDynamicStateCreateInfo
-	// Dynamic state in vulkan-tutorial.com
 
 	/* Depth image */
 	if err := v.prepareDepthImage(); err != nil {
@@ -517,7 +515,7 @@ func (v *VulkanRenderer) createTextureSampler() error {
 		AddressModeU:            vk.SamplerAddressModeRepeat,
 		AddressModeV:            vk.SamplerAddressModeRepeat,
 		AddressModeW:            vk.SamplerAddressModeRepeat,
-		AnisotropyEnable:        vk.False, // TODO: figure out anistropy
+		AnisotropyEnable:        vk.True,
 		MaxAnisotropy:           16,
 		BorderColor:             vk.BorderColorFloatOpaqueBlack,
 		UnnormalizedCoordinates: vk.False,
