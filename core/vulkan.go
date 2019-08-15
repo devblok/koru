@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"image/jpeg"
+	"image/png"
 	"io/ioutil"
 	"math"
 	"os"
@@ -185,17 +185,17 @@ func (v VulkanInstance) Destroy() {
 
 // NewVulkanRenderer creates a not yet initialised Vulkan API renderer
 func NewVulkanRenderer(instance Instance, cfg RendererConfiguration) (Renderer, error) {
-	data, err := ioutil.ReadFile("assets/cube.dae")
+	data, err := ioutil.ReadFile("assets/suzanne.dae")
 	if err != nil {
 		return nil, err
 	}
 
-	textureFile, err := os.Open("assets/rust.jpeg")
+	textureFile, err := os.Open("assets/Bricks_COLOR.png")
 	if err != nil {
 		return nil, fmt.Errorf("texture file open failed: %s", err.Error())
 	}
 
-	img, err := jpeg.Decode(textureFile)
+	img, err := png.Decode(textureFile)
 	if err != nil {
 		return nil, fmt.Errorf("jpeg decode failed: %s", err.Error())
 	}
@@ -585,21 +585,6 @@ func (v *VulkanRenderer) createTextureImage() error {
 	v.textureBuffer = textureBuffer
 	v.textureMemory = textureMemory
 
-	pixels, err := getPixels(v.texture)
-	if err != nil {
-		return err
-	}
-
-	var mappedMemory unsafe.Pointer
-	vk.MapMemory(v.logicalDevice, textureMemory, 0, vk.DeviceSize(bufSize), 0, &mappedMemory)
-	castMappedMemory := *(*[]byte)(unsafe.Pointer(&sliceHeader{
-		Data: uintptr(mappedMemory),
-		Cap:  bufSize,
-		Len:  bufSize,
-	}))
-	copy(castMappedMemory, pixels[:])
-	vk.UnmapMemory(v.logicalDevice, textureMemory)
-
 	var (
 		textureImage       vk.Image
 		textureImageMemory vk.DeviceMemory
@@ -615,8 +600,8 @@ func (v *VulkanRenderer) createTextureImage() error {
 		},
 		MipLevels:     1,
 		ArrayLayers:   1,
-		Format:        vk.FormatR8g8b8a8Snorm,
-		Tiling:        vk.ImageTilingOptimal,
+		Format:        vk.FormatR8g8b8a8Unorm,
+		Tiling:        vk.ImageTilingLinear,
 		InitialLayout: vk.ImageLayoutUndefined,
 		Usage:         vk.ImageUsageFlags(vk.ImageUsageTransferDstBit | vk.ImageUsageSampledBit),
 		SharingMode:   vk.SharingModeExclusive,
@@ -626,6 +611,27 @@ func (v *VulkanRenderer) createTextureImage() error {
 	if err := vk.Error(vk.CreateImage(v.logicalDevice, &ici, nil, &textureImage)); err != nil {
 		return fmt.Errorf("vk.CreateImage(): %s", err.Error())
 	}
+
+	var layout vk.SubresourceLayout
+	vk.GetImageSubresourceLayout(v.logicalDevice, textureImage, &vk.ImageSubresource{
+		AspectMask: vk.ImageAspectFlags(vk.ImageAspectColorBit),
+	}, &layout)
+	layout.Deref()
+
+	pixels, err := getPixels(v.texture, int(layout.RowPitch))
+	if err != nil {
+		return err
+	}
+
+	var mappedMemory unsafe.Pointer
+	vk.MapMemory(v.logicalDevice, textureMemory, 0, vk.DeviceSize(bufSize), 0, &mappedMemory)
+	castMappedMemory := *(*[]uint8)(unsafe.Pointer(&sliceHeader{
+		Data: uintptr(mappedMemory),
+		Cap:  bufSize,
+		Len:  bufSize,
+	}))
+	copy(castMappedMemory, pixels[:])
+	vk.UnmapMemory(v.logicalDevice, textureMemory)
 
 	var memRequirements vk.MemoryRequirements
 	vk.GetImageMemoryRequirements(v.logicalDevice, textureImage, &memRequirements)
@@ -671,7 +677,7 @@ func (v *VulkanRenderer) createTextureImageView() error {
 		SType:    vk.StructureTypeImageViewCreateInfo,
 		Image:    v.textureImage,
 		ViewType: vk.ImageViewType2d,
-		Format:   vk.FormatR8g8b8a8Snorm,
+		Format:   vk.FormatR8g8b8a8Unorm,
 		SubresourceRange: vk.ImageSubresourceRange{
 			AspectMask:     vk.ImageAspectFlags(vk.ImageAspectColorBit),
 			BaseMipLevel:   0,
@@ -1109,7 +1115,7 @@ var constant float32
 func (v *VulkanRenderer) updateUniformBuffers(imageIdx uint32) {
 	constant += 0.005
 	ubo := model.Uniform{
-		Model:      glm.HomogRotate3D(constant, glm.Vec3{0, 1, 0}),
+		Model:      glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
 		View:       glm.LookAt(2, 2, 2, 0, 0, 0, 0, 0, 1),
 		Projection: glm.Perspective(45, (float32)(v.currentSurfaceWidth)/(float32)(v.currentSurfaceHeight), 0.1, 10),
 	}
