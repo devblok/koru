@@ -536,6 +536,37 @@ func (v *VulkanRenderer) createTextureSampler() error {
 	return nil
 }
 
+func (v *VulkanRenderer) createBuffer(buffer *vk.Buffer, size int, usage vk.BufferUsageFlagBits, sharingMode vk.SharingMode) error {
+	bci := vk.BufferCreateInfo{
+		SType:       vk.StructureTypeBufferCreateInfo,
+		Size:        vk.DeviceSize(size),
+		Usage:       vk.BufferUsageFlags(usage),
+		SharingMode: sharingMode,
+	}
+	if err := vk.Error(vk.CreateBuffer(v.logicalDevice, &bci, nil, buffer)); err != nil {
+		return fmt.Errorf("vk.CreateBuffer(): %s", err.Error())
+	}
+	return nil
+}
+
+func (v *VulkanRenderer) allocateMemory(memory *vk.DeviceMemory, size vk.DeviceSize, memoryType uint32, properties vk.MemoryPropertyFlagBits) error {
+	memTypeIdx, err := findMemoryType(v.physicalDevice, memoryType, vk.MemoryPropertyFlags(properties))
+	if err != nil {
+		return err
+	}
+
+	mai := vk.MemoryAllocateInfo{
+		SType:           vk.StructureTypeMemoryAllocateInfo,
+		AllocationSize:  size,
+		MemoryTypeIndex: memTypeIdx,
+	}
+
+	if err := vk.Error(vk.AllocateMemory(v.logicalDevice, &mai, nil, memory)); err != nil {
+		return fmt.Errorf("vk.AllocateMemory(): %s", err.Error())
+	}
+	return nil
+}
+
 func (v *VulkanRenderer) createTextureImage() error {
 	bounds := v.texture.Bounds()
 	bufSize := bounds.Max.X * bounds.Max.Y * 4
@@ -545,32 +576,16 @@ func (v *VulkanRenderer) createTextureImage() error {
 		textureMemory vk.DeviceMemory
 	)
 
-	bci := vk.BufferCreateInfo{
-		SType:       vk.StructureTypeBufferCreateInfo,
-		Size:        vk.DeviceSize(bufSize),
-		Usage:       vk.BufferUsageFlags(vk.BufferUsageTransferSrcBit),
-		SharingMode: vk.SharingModeExclusive,
-	}
-	if err := vk.Error(vk.CreateBuffer(v.logicalDevice, &bci, nil, &textureBuffer)); err != nil {
-		return fmt.Errorf("vk.CreateBuffer(): %s", err.Error())
+	if err := v.createBuffer(&textureBuffer, bufSize, vk.BufferUsageTransferSrcBit, vk.SharingModeExclusive); err != nil {
+		return err
 	}
 
 	var memoryRequirements vk.MemoryRequirements
 	vk.GetBufferMemoryRequirements(v.logicalDevice, textureBuffer, &memoryRequirements)
 	memoryRequirements.Deref()
-	memTypeIdx, err := findMemoryType(v.physicalDevice, memoryRequirements.MemoryTypeBits, vk.MemoryPropertyFlags(vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit))
-	if err != nil {
+
+	if err := v.allocateMemory(&textureMemory, memoryRequirements.Size, memoryRequirements.MemoryTypeBits, vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit); err != nil {
 		return err
-	}
-
-	mai := vk.MemoryAllocateInfo{
-		SType:           vk.StructureTypeMemoryAllocateInfo,
-		AllocationSize:  memoryRequirements.Size,
-		MemoryTypeIndex: memTypeIdx,
-	}
-
-	if err := vk.Error(vk.AllocateMemory(v.logicalDevice, &mai, nil, &textureMemory)); err != nil {
-		return fmt.Errorf("vk.AllocateMemory(): %s", err.Error())
 	}
 
 	vk.BindBufferMemory(v.logicalDevice, textureBuffer, textureMemory, 0)
@@ -828,37 +843,21 @@ func (v *VulkanRenderer) copyBufferToImage(buf vk.Buffer, img vk.Image, width, h
 }
 
 func (v *VulkanRenderer) createUniformBuffers() error {
-	bufferSize := vk.DeviceSize(unsafe.Sizeof(model.Uniform{}))
+	bufferSize := int(unsafe.Sizeof(model.Uniform{}))
 	uniformBuffers := make([]vk.Buffer, len(v.swapchainImages))
 	uniformBuffersMemory := make([]vk.DeviceMemory, len(v.swapchainImages))
 
 	for idx := 0; idx < len(v.swapchainImages); idx++ {
-		bci := vk.BufferCreateInfo{
-			SType:       vk.StructureTypeBufferCreateInfo,
-			Size:        bufferSize,
-			Usage:       vk.BufferUsageFlags(vk.BufferUsageUniformBufferBit),
-			SharingMode: vk.SharingModeExclusive,
-		}
-		if err := vk.Error(vk.CreateBuffer(v.logicalDevice, &bci, nil, &uniformBuffers[idx])); err != nil {
-			return fmt.Errorf("vk.CreateBuffer(): %s", err.Error())
+		if err := v.createBuffer(&uniformBuffers[idx], bufferSize, vk.BufferUsageUniformBufferBit, vk.SharingModeExclusive); err != nil {
+			return err
 		}
 
 		var memoryRequirements vk.MemoryRequirements
 		vk.GetBufferMemoryRequirements(v.logicalDevice, uniformBuffers[idx], &memoryRequirements)
 		memoryRequirements.Deref()
-		memTypeIdx, err := findMemoryType(v.physicalDevice, memoryRequirements.MemoryTypeBits, vk.MemoryPropertyFlags(vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit))
-		if err != nil {
+
+		if err := v.allocateMemory(&uniformBuffersMemory[idx], memoryRequirements.Size, memoryRequirements.MemoryTypeBits, vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit); err != nil {
 			return err
-		}
-
-		mai := vk.MemoryAllocateInfo{
-			SType:           vk.StructureTypeMemoryAllocateInfo,
-			AllocationSize:  memoryRequirements.Size,
-			MemoryTypeIndex: memTypeIdx,
-		}
-
-		if err := vk.Error(vk.AllocateMemory(v.logicalDevice, &mai, nil, &uniformBuffersMemory[idx])); err != nil {
-			return fmt.Errorf("vk.AllocateMemory(): %s", err.Error())
 		}
 
 		vk.BindBufferMemory(v.logicalDevice, uniformBuffers[idx], uniformBuffersMemory[idx], 0)
@@ -870,16 +869,9 @@ func (v *VulkanRenderer) createUniformBuffers() error {
 }
 
 func (v *VulkanRenderer) createVertexBuffers() error {
-	bci := vk.BufferCreateInfo{
-		SType:       vk.StructureTypeBufferCreateInfo,
-		Size:        vk.DeviceSize(int(unsafe.Sizeof(model.Vertex{})) * len(v.vertices)),
-		Usage:       vk.BufferUsageFlags(vk.BufferUsageVertexBufferBit),
-		SharingMode: vk.SharingModeExclusive,
-	}
-
 	var vertexBuffer vk.Buffer
-	if err := vk.Error(vk.CreateBuffer(v.logicalDevice, &bci, nil, &vertexBuffer)); err != nil {
-		return fmt.Errorf("vk.CreateBuffer(): %s", err.Error())
+	if err := v.createBuffer(&vertexBuffer, int(unsafe.Sizeof(model.Vertex{}))*len(v.vertices), vk.BufferUsageVertexBufferBit, vk.SharingModeExclusive); err != nil {
+		return err
 	}
 	v.vertexBuffer = vertexBuffer
 
@@ -887,20 +879,9 @@ func (v *VulkanRenderer) createVertexBuffers() error {
 	vk.GetBufferMemoryRequirements(v.logicalDevice, vertexBuffer, &memoryRequirements)
 	memoryRequirements.Deref()
 
-	memoryTypeIndex, err := findMemoryType(v.physicalDevice, memoryRequirements.MemoryTypeBits, vk.MemoryPropertyFlags(vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit))
-	if err != nil {
-		return err
-	}
-
-	mai := vk.MemoryAllocateInfo{
-		SType:           vk.StructureTypeMemoryAllocateInfo,
-		AllocationSize:  memoryRequirements.Size,
-		MemoryTypeIndex: memoryTypeIndex,
-	}
-
 	var vertexMemory vk.DeviceMemory
-	if err := vk.Error(vk.AllocateMemory(v.logicalDevice, &mai, nil, &vertexMemory)); err != nil {
-		return fmt.Errorf("vk.AllocateMemory(): %s", err.Error())
+	if err := v.allocateMemory(&vertexMemory, memoryRequirements.Size, memoryRequirements.MemoryTypeBits, vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit); err != nil {
+		return err
 	}
 	v.vertexMemory = vertexMemory
 
@@ -909,7 +890,7 @@ func (v *VulkanRenderer) createVertexBuffers() error {
 	}
 
 	var vertexMappedMemory unsafe.Pointer
-	vk.MapMemory(v.logicalDevice, vertexMemory, 0, bci.Size, 0, &vertexMappedMemory)
+	vk.MapMemory(v.logicalDevice, vertexMemory, 0, memoryRequirements.Size, 0, &vertexMappedMemory)
 
 	vertexCastMemory := *(*[]model.Vertex)(unsafe.Pointer(&sliceHeader{
 		Data: uintptr(vertexMappedMemory),
@@ -1416,49 +1397,6 @@ func (v *VulkanRenderer) allocateCommandBuffers() error {
 		return errors.New("vk.AllocateCommandBuffers(): " + err.Error())
 	}
 	v.commandBuffers = commandBuffers
-
-	return nil
-}
-
-func (v *VulkanRenderer) prepareUniformBuffers() error {
-	// vk.CreateBuffer
-	// vk.AllocateMemory
-	// vk.BindBufferMemory
-	bci := vk.BufferCreateInfo{
-		SType: vk.StructureTypeBufferCreateInfo,
-		Size:  10,
-		Usage: vk.BufferUsageFlags(vk.BufferUsageUniformBufferBit),
-	}
-
-	var buffer vk.Buffer
-	if err := vk.Error(vk.CreateBuffer(v.logicalDevice, &bci, nil, &buffer)); err != nil {
-		return err
-	}
-
-	var memoryRequirements vk.MemoryRequirements
-	vk.GetBufferMemoryRequirements(v.logicalDevice, buffer, &memoryRequirements)
-	memoryRequirements.Deref()
-
-	memoryType, err := v.getMemoryType(memoryRequirements.MemoryTypeBits,
-		vk.MemoryPropertyFlags(vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit))
-	if err != nil {
-		return err
-	}
-
-	allocationInfo := vk.MemoryAllocateInfo{
-		SType:           vk.StructureTypeMemoryAllocateInfo,
-		AllocationSize:  memoryRequirements.Size,
-		MemoryTypeIndex: memoryType,
-	}
-
-	var memory vk.DeviceMemory
-	if err := vk.Error(vk.AllocateMemory(v.logicalDevice, &allocationInfo, nil, &memory)); err != nil {
-		return err
-	}
-
-	if err := vk.Error(vk.BindBufferMemory(v.logicalDevice, buffer, memory, 0)); err != nil {
-		return err
-	}
 
 	return nil
 }
