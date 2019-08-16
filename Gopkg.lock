@@ -18,24 +18,27 @@
   version = "v1.7.0"
 
 [[projects]]
-  digest = "1:416086a29c268279219d7437fc5fe295a420be1617d880a1c387b5a1ff06a4f3"
+  digest = "1:40849e8495ef81a84ff335ef65e23d33671b61e60e9db464fbab55f19f43f120"
   name = "github.com/gobuffalo/packd"
-  packages = ["."]
+  packages = [
+    ".",
+    "internal/takeon/github.com/markbates/errx",
+  ]
   pruneopts = "UT"
-  revision = "9d6116a72e8e57fc75d9b5d6be07ed31bcd673d0"
-  version = "v0.2.0"
+  revision = "54ea459691466cfb630ccc276723fe3963f3e9d5"
+  version = "v0.3.0"
 
 [[projects]]
-  digest = "1:6b1e272fea1d06b3e3de212f6be6b11f9979c68fb71efa649ebdfdd2e542afd4"
+  digest = "1:6418b861412b06885ed9981efdc740bc5f025c55b7bfb66518929916ea8f5cb3"
   name = "github.com/gobuffalo/packr"
   packages = ["."]
   pruneopts = "UT"
-  revision = "a7085697a89c0c37a038939a172299ef8bf4bba8"
-  version = "v2.4.0"
+  revision = "9eb7a3d310e89e471c2cdf1ea3ec8d7fc1ab969c"
+  version = "v2.5.2"
 
 [[projects]]
   branch = "master"
-  digest = "1:b5ac9ed79a83cdc7f69442236764aa4d42acdb00db3dfe27145072b9c7136b9d"
+  digest = "1:d5f7838cbfb03ce7d2f8694b563740194a4bfc6f350baf3ddd5ca54a11117296"
   name = "github.com/gotk3/gotk3"
   packages = [
     "cairo",
@@ -45,7 +48,7 @@
     "pango",
   ]
   pruneopts = "UT"
-  revision = "6dcdf9e5c51e982e099eea798c95faea42def17d"
+  revision = "dc58eba1cccce7802b38f6aada034a153f7d996b"
 
 [[projects]]
   digest = "1:ecd9aa82687cf31d1585d4ac61d0ba180e42e8a6182b85bd785fcca8dfeefc1b"
@@ -62,14 +65,6 @@
   pruneopts = "UT"
   revision = "f55edac94c9bbba5d6182a4be46d86a2c9b5b50e"
   version = "v1.0.2"
-
-[[projects]]
-  digest = "1:cf31692c14422fa27c83a05292eb5cbe0fb2775972e8f1f8446a71549bd8980b"
-  name = "github.com/pkg/errors"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "ba968bfe8b2f7e042a574c888954fccecfa385b4"
-  version = "v0.8.1"
 
 [[projects]]
   digest = "1:e09ada96a5a41deda4748b1659cc8953961799e798aea557257b56baee4ecaf3"
@@ -92,11 +87,11 @@
   version = "v1.4.2"
 
 [[projects]]
-  digest = "1:4de8528c22261e2ffc2dfa8ec93c5b7f8078890ad118e4b7259b67ded4eeaa5e"
+  digest = "1:e8133b504826a51e76e5eae75e4980756e5b8a65a1e4e6802d8e23941ab8976e"
   name = "github.com/veandco/go-sdl2"
   packages = ["sdl"]
   pruneopts = "UT"
-  revision = "7a9b8d607870d8d03a1b739ddff015d4ab10f2eb"
+  revision = "da65661eff7f5d84f6f7436a710561fdb5418761"
 
 [[projects]]
   branch = "master"
@@ -112,15 +107,15 @@
   name = "golang.org/x/image"
   packages = ["math/f32"]
   pruneopts = "UT"
-  revision = "1bd0cf57649315a0106c88938931e54f3c0f88e5"
+  revision = "cff245a6509b8c4de022d0d5b9037c503c5989d6"
 
 [[projects]]
   branch = "master"
-  digest = "1:a2b03582f5805ebb5d96482a0ea550d48aba5347cc5089d89d2307ac55b98660"
+  digest = "1:47844666be86089349a441f5f0ece22f42a87a8cb8c9a31294c593f43209ad19"
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "d432491b91382bba9c2a91776aa47c9430183a6f"
+  revision = "fde4db37ae7ad8191b03d30d27f258b5291ae4e3"
 
 [solve-meta]
   analyzer-name = "dep"

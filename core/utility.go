@@ -2,6 +2,8 @@ package core
 
 import (
 	"fmt"
+	"image"
+	"image/draw"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,4 +75,15 @@ func safeStrings(sgs []string) []string {
 		safe = append(safe, fmt.Sprintf("%s\x00", s))
 	}
 	return safe
+}
+
+func getPixels(img image.Image, rowPitch int) ([]uint8, error) {
+	newImg := image.NewRGBA(img.Bounds())
+	if rowPitch <= 4*img.Bounds().Dy() {
+		// apply the proposed row pitch only if supported,
+		// as we're using only optimal textures.
+		newImg.Stride = rowPitch
+	}
+	draw.Draw(newImg, newImg.Bounds(), img, image.ZP, draw.Src)
+	return newImg.Pix, nil
 }
