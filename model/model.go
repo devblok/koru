@@ -33,7 +33,7 @@ type Object interface {
 
 	// Texture returns the raw data of a color texture image
 	// for use in the Renderer
-	Texture() image.Image
+	Texture() Texture
 
 	// NormalMap returns the raw data of a normal map
 	// for use in the Renderer
@@ -46,6 +46,15 @@ type Vertex struct {
 	Normal glm.Vec3
 	Color  glm.Vec4
 	Tex    glm.Vec2
+}
+
+// Texture is a container component for textures.
+// Because textures can either be in an image form or raw form,
+// this struct accomodates both
+type Texture struct {
+	Img    image.Image
+	Raw    []uint8
+	Bounds image.Rectangle
 }
 
 // Uniform defines a model-view-projection object

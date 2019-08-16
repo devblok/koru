@@ -60,7 +60,9 @@ func ImportColladaObject(fileContents []byte, texture image.Image) (Object, erro
 
 	return &ColladaObject{
 		vertices: vertices,
-		texture:  texture,
+		texture: Texture{
+			Img: texture,
+		},
 	}, nil
 }
 
@@ -74,7 +76,7 @@ type ColladaObject struct {
 	rotation glm.Mat4
 
 	vertices []Vertex
-	texture  image.Image
+	texture  Texture
 }
 
 // SetPosition implements interface
@@ -111,7 +113,7 @@ func (co *ColladaObject) Vertices() []Vertex {
 }
 
 // Texture implements interface
-func (co *ColladaObject) Texture() image.Image {
+func (co *ColladaObject) Texture() Texture {
 	return co.texture
 }
 

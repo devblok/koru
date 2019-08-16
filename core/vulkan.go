@@ -3,12 +3,12 @@ package core
 import (
 	"errors"
 	"fmt"
-	"image"
 	"image/png"
 	"io/ioutil"
 	"math"
 	"os"
 	"strings"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/devblok/koru/model"
@@ -276,7 +276,7 @@ type VulkanRenderer struct {
 	uniformBuffers       []vk.Buffer
 	uniformBuffersMemory []vk.DeviceMemory
 
-	texture            image.Image
+	texture            model.Texture
 	textureBuffer      vk.Buffer
 	textureMemory      vk.DeviceMemory
 	textureImage       vk.Image
@@ -568,7 +568,7 @@ func (v *VulkanRenderer) allocateMemory(memory *vk.DeviceMemory, size vk.DeviceS
 }
 
 func (v *VulkanRenderer) createTextureImage() error {
-	bounds := v.texture.Bounds()
+	bounds := v.texture.Img.Bounds()
 	bufSize := bounds.Max.X * bounds.Max.Y * 4
 
 	var (
@@ -626,7 +626,7 @@ func (v *VulkanRenderer) createTextureImage() error {
 	}, &layout)
 	layout.Deref()
 
-	pixels, err := getPixels(v.texture, int(layout.RowPitch))
+	pixels, err := getPixels(v.texture.Img, int(layout.RowPitch))
 	if err != nil {
 		return err
 	}
@@ -898,13 +898,6 @@ func (v *VulkanRenderer) createVertexBuffers() error {
 		Len:  len(v.vertices),
 	}))
 	copy(vertexCastMemory, v.vertices[:])
-
-	// Approach #2
-	// buf := new(bytes.Buffer)
-	// binary.Write(buf, binary.LittleEndian, v.vertices)
-	// rawBytes := buf.Bytes()
-	// vk.Memcopy(vertexMappedMemory, rawBytes)
-
 	vk.UnmapMemory(v.logicalDevice, vertexMemory)
 
 	return nil
@@ -1790,6 +1783,13 @@ func (v VulkanRenderer) DeviceIsSuitable(device vk.PhysicalDevice) (bool, string
 	return true, ""
 }
 
+// BuildResources implements interface
+func (v *VulkanRenderer) BuildResources() ResourceBuilder {
+	return &VulkanResourceBuilder{
+		device: v.logicalDevice,
+	}
+}
+
 // Destroy implements interface
 func (v *VulkanRenderer) Destroy() {
 	vk.DeviceWaitIdle(v.logicalDevice)
@@ -1913,4 +1913,57 @@ func (v VulkanShader) Name() string {
 // Destroy implements interface
 func (v VulkanShader) Destroy() {
 	vk.DestroyShaderModule(v.device, v.shader, nil)
+}
+
+// VulkanRendererResources are Vulkan specific RendererResources
+type VulkanRendererResources struct {
+	RendererResources
+
+	isHidden int32
+}
+
+// Hidden implements interface
+func (v *VulkanRendererResources) Hidden(hidden bool) {
+	if hidden {
+		atomic.StoreInt32(&v.isHidden, 0)
+	} else {
+		atomic.StoreInt32(&v.isHidden, 1)
+	}
+}
+
+// IsHidden implements interface
+func (v *VulkanRendererResources) IsHidden() bool {
+	if atomic.LoadInt32(&v.isHidden) == 0 {
+		return false
+	}
+	return false
+}
+
+// VulkanResourceBuilder is a Vulkan specific resource builder
+type VulkanResourceBuilder struct {
+	ResourceBuilder
+
+	device vk.Device
+
+	isHidden bool
+	mesh     []model.Vertex
+	texture  model.Texture
+}
+
+// Build implements interface
+func (v VulkanResourceBuilder) Build() (RendererResources, error) {
+	return &VulkanRendererResources{}, nil
+}
+
+// WithModel implements interface
+func (v *VulkanResourceBuilder) WithModel(obj model.Object) ResourceBuilder {
+	v.mesh = obj.Vertices()
+	v.texture = obj.Texture()
+	return v
+}
+
+// StartHidden implements interface
+func (v *VulkanResourceBuilder) StartHidden(hidden bool) ResourceBuilder {
+	v.isHidden = hidden
+	return v
 }
