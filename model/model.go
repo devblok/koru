@@ -33,7 +33,7 @@ type Object interface {
 
 	// Texture returns the raw data of a color texture image
 	// for use in the Renderer
-	Texture() Texture
+	Texture() image.Image
 
 	// NormalMap returns the raw data of a normal map
 	// for use in the Renderer

@@ -3,7 +3,7 @@ package core
 import (
 	"unsafe"
 
-	"github.com/devblok/koru/model"
+	glm "github.com/go-gl/mathgl/mgl32"
 	vk "github.com/vulkan-go/vulkan"
 )
 
@@ -61,8 +61,15 @@ type Renderer interface {
 	// Initialise sets up the configured rendering pipeline
 	Initialise() error
 
-	// BuildResources creates a ResourceBuilder that deals with instantiating a new model
-	BuildResources() ResourceBuilder
+	// ResourceHandle requests for a unique handle for use with the renderer.
+	// Every entity that wishes to be rendered needs to get a unique handle.
+	ResourceHandle() ResourceHandle
+
+	// Update updates the current rendering queue at given handle
+	ResourceUpdate(ResourceHandle, ResourceInstance) <-chan struct{}
+
+	// ResourceDelete removes the resource from rendering queue
+	ResourceDelete(ResourceHandle)
 
 	// Draw draws the frame
 	Draw() error
@@ -100,33 +107,19 @@ type Shader interface {
 	Name() string
 }
 
-// RendererResources is a container for Renderer resources (device memory, textures etc). It is an *instance* of resources.
-// This interface should be given to every entity/model that has resources on the renderer's side.
-// A RendererResource should be shared between instances that utilize the same set of resources for performance reasons (TODO).
-// Destroying the RendererResources should automatically remove it from rendering and destroy ascociated
-// memory etc., it is the normal way to do this. It is important it does not remove itself if any other entities
-// in the Renderer still have it attached. Destroy should have no effect in that case.
-// A Resource is created with a ResourceBuilder.
-type RendererResources interface {
-	Destroyable
+// ResourceInstance represents an instance in the renderer.
+// Contains all the data, should be updated all at once.
+type ResourceInstance struct {
 
-	// Hidden sets if the resouce participates in rendering or not
-	Hidden(bool)
+	// ResourceID tells the renderer which resource to load from packages
+	ResourceID string
 
-	// IsHidden returns the hidden state of the resources
-	IsHidden() bool
+	// Position matrix for the Resource
+	Position glm.Mat4
+
+	// Rotation matrix for the Resource
+	Rotation glm.Mat4
 }
 
-// ResourceBuilder builds RendererResources based on given data
-type ResourceBuilder interface {
-
-	// Build constructs and returns the set of resources queried
-	Build() (RendererResources, error)
-
-	// WithModel builds resources with a given model
-	WithModel(model.Object) ResourceBuilder
-
-	// StartHidden creates the resources, but they will not participate in rendering outright,
-	// this behaviour is changed on RendererResources Hidden(bool) member
-	StartHidden(bool) ResourceBuilder
-}
+// ResourceHandle identifies the resource instance in the renderer
+type ResourceHandle uint32
