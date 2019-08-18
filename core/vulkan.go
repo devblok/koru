@@ -9,7 +9,6 @@ import (
 	"math"
 	"os"
 	"strings"
-	"sync/atomic"
 	"unsafe"
 
 	"github.com/devblok/koru/model"
@@ -1915,35 +1914,4 @@ func (rs *resourceSet) Destroy() {
 	vk.FreeMemory(rs.device, rs.textureImageMemory, nil)
 	vk.DestroyImageView(rs.device, rs.textureImageView, nil)
 	vk.DestroyImage(rs.device, rs.textureImage, nil)
-}
-
-// VulkanResourceInstance is a Vulkan specific instance of an object
-// TODO: For instancing, there should be a shared resource set between same
-// type of instances
-type VulkanResourceInstance struct {
-	ResourceInstance
-
-	isHidden int32
-}
-
-// Show implements interface
-func (v *VulkanResourceInstance) Show(show bool) {
-	if show {
-		atomic.StoreInt32(&v.isHidden, 1)
-	} else {
-		atomic.StoreInt32(&v.isHidden, 0)
-	}
-}
-
-// Hidden implements interface
-func (v *VulkanResourceInstance) Hidden() bool {
-	if atomic.LoadInt32(&v.isHidden) == 0 {
-		return false
-	}
-	return false
-}
-
-// Destroy frees all the ascociated resources
-func (v *VulkanResourceInstance) Destroy() {
-
 }
