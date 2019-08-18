@@ -616,7 +616,7 @@ func (v *VulkanRenderer) createTextureImage(set *resourceSet, texture image.Imag
 	}, &layout)
 	layout.Deref()
 
-	pixels, err := getPixels(texture, int(layout.RowPitch))
+	pixels, err := GetPixels(texture, int(layout.RowPitch))
 	if err != nil {
 		return err
 	}
@@ -1822,7 +1822,7 @@ func NewVulkanShader(path string, shaderType ShaderType, device vk.Device) (Shad
 	smci := vk.ShaderModuleCreateInfo{
 		SType:    vk.StructureTypeShaderModuleCreateInfo,
 		CodeSize: uint(len(shaderContents)),
-		PCode:    sliceUint32(shaderContents),
+		PCode:    SliceUint32(shaderContents),
 	}
 
 	var shader vk.ShaderModule
