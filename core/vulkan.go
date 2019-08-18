@@ -9,6 +9,8 @@ import (
 	"math"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/devblok/koru/model"
@@ -191,7 +193,7 @@ func NewVulkanRenderer(instance Instance, cfg RendererConfiguration) (Renderer, 
 		currentSurfaceWidth:  cfg.ScreenWidth,
 		surface:              instance.Surface(),
 		physicalDevice:       instance.AvailableDevices()[0],
-		resources:            make(map[string]resourceSet),
+		resourcePositions:    make(map[string]int),
 	}, nil
 }
 
@@ -247,8 +249,18 @@ type VulkanRenderer struct {
 	currentQueueIndex  uint32
 	graphicsQueueIndex uint32
 
-	resources map[string]resourceSet
-	instances map[ResourceHandle]ResourceInstance
+	// TODO: Resource reaping, now the slice only grows,
+	// on long runs resources may pop in and out, with dead cells
+	// taking up memory essentially. The slice should not be recreated
+	// as it would cause possibly lengthy re-allocation of underlying heap.
+	resourceLock      sync.RWMutex
+	resources         []resourceSet
+	resourcePositions map[string]int
+
+	instanceLock sync.RWMutex
+	instances    map[ResourceHandle]ResourceInstance
+
+	instanceCounter uint32
 
 	textureSampler vk.Sampler
 }
@@ -498,7 +510,10 @@ func (v *VulkanRenderer) loadResourceSet() error {
 		return err
 	}
 
-	v.resources[key] = rs
+	v.resourceLock.Lock()
+	v.resources = append(v.resources, rs)
+	v.resourcePositions[key] = len(v.resources) - 1
+	v.resourceLock.Unlock()
 
 	return nil
 }
@@ -944,6 +959,8 @@ func (v *VulkanRenderer) recreatePipeline() error {
 		return err
 	}
 
+	v.createViewport()
+
 	if err := v.prepareDepthImage(); err != nil {
 		return err
 	}
@@ -975,6 +992,14 @@ func (v *VulkanRenderer) recreatePipeline() error {
 	if err := v.allocateCommandBuffers(); err != nil {
 		return err
 	}
+
+	v.resourceLock.Lock()
+	for k := range v.resources {
+		if err := v.createDescriptorSets(&v.resources[k]); err != nil {
+			return err
+		}
+	}
+	v.resourceLock.Unlock()
 
 	return nil
 }
@@ -1033,11 +1058,13 @@ func (v *VulkanRenderer) buildCommandBuffers(imageIdx uint32) error {
 	vk.CmdSetScissor(v.commandBuffers[imageIdx], 0, 1, []vk.Rect2D{v.scissor})
 
 	// TODO: Instancing with PushConstants
+	v.resourceLock.RLock()
 	for k := range v.resources {
 		vk.CmdBindVertexBuffers(v.commandBuffers[imageIdx], 0, 1, []vk.Buffer{v.resources[k].vertexBuffer}, []vk.DeviceSize{0})
 		vk.CmdBindDescriptorSets(v.commandBuffers[imageIdx], vk.PipelineBindPointGraphics, v.pipelineLayout, 0, 1, v.resources[k].descriptorSets, 0, nil)
 		vk.CmdDraw(v.commandBuffers[imageIdx], v.resources[k].numVertices, 1, 0, 0)
 	}
+	v.resourceLock.RUnlock()
 
 	vk.CmdEndRenderPass(v.commandBuffers[imageIdx])
 
@@ -1081,9 +1108,11 @@ func (v *VulkanRenderer) Draw() error {
 		return nil
 	}
 
+	v.resourceLock.RLock()
 	for _, rs := range v.resources {
 		v.updateUniformBuffers(v.imageIndex, &rs)
 	}
+	v.resourceLock.RUnlock()
 
 	/* Fill in command buffers */
 	if err := v.buildCommandBuffers(v.imageIndex); err != nil {
@@ -1755,8 +1784,37 @@ func (v *VulkanRenderer) loadShaders() error {
 	return nil
 }
 
+// ResourceHandle implements interface
+// TODO: Handles shouldn't be a infinitely increasing counter, someday it will wrap around on a long run
+func (v *VulkanRenderer) ResourceHandle() (ResourceHandle, error) {
+	defer func() { atomic.AddUint32(&v.instanceCounter, 1) }()
+	handle := atomic.LoadUint32(&v.instanceCounter)
+	return ResourceHandle(handle), nil
+}
+
+// ResourceUpdate implements interface
+func (v *VulkanRenderer) ResourceUpdate(handle ResourceHandle, instance ResourceInstance) <-chan struct{} {
+	sig := make(chan struct{})
+	defer func() { sig <- struct{}{} }()
+
+	// TODO: implement checking if resource is loaded and ready
+
+	v.instanceLock.Lock()
+	defer v.instanceLock.Unlock()
+
+	v.instances[handle] = instance
+	return sig
+}
+
+// ResourceDelete implements interface
+func (v *VulkanRenderer) ResourceDelete(handle ResourceHandle) {
+	v.instanceLock.Lock()
+	defer v.instanceLock.Unlock()
+	delete(v.instances, handle)
+}
+
 // DeviceIsSuitable implements interface
-func (v VulkanRenderer) DeviceIsSuitable(device vk.PhysicalDevice) (bool, string) {
+func (v *VulkanRenderer) DeviceIsSuitable(device vk.PhysicalDevice) (bool, string) {
 	// TODO: Add device suitability checking
 	return true, ""
 }
@@ -1769,9 +1827,11 @@ func (v *VulkanRenderer) Destroy() {
 		shader.Destroy()
 	}
 
+	v.resourceLock.Lock()
 	for _, rs := range v.resources {
 		rs.Destroy()
 	}
+	v.resourceLock.Unlock()
 
 	vk.DestroySemaphore(v.logicalDevice, v.imageAvailableSemaphore, nil)
 	vk.DestroySemaphore(v.logicalDevice, v.renderFinishedSemphore, nil)

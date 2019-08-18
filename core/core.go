@@ -63,7 +63,7 @@ type Renderer interface {
 
 	// ResourceHandle requests for a unique handle for use with the renderer.
 	// Every entity that wishes to be rendered needs to get a unique handle.
-	ResourceHandle() ResourceHandle
+	ResourceHandle() (ResourceHandle, error)
 
 	// Update updates the current rendering queue at given handle
 	ResourceUpdate(ResourceHandle, ResourceInstance) <-chan struct{}
