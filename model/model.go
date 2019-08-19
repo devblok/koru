@@ -48,9 +48,17 @@ type Vertex struct {
 	Tex    glm.Vec2
 }
 
+// Texture is a container component for textures.
+// Because textures can either be in an image form or raw form,
+// this struct accomodates both
+type Texture struct {
+	Img    image.Image
+	Raw    []uint8
+	Bounds image.Rectangle
+}
+
 // Uniform defines a model-view-projection object
 type Uniform struct {
-	Model      glm.Mat4
 	View       glm.Mat4
 	Projection glm.Mat4
 }

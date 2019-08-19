@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	"github.com/devblok/koru/core"
+	glm "github.com/go-gl/mathgl/mgl32"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
@@ -34,6 +35,7 @@ var (
 var (
 	cpuProfile = flag.String("cpuprof", "", "Profile CPU usage to file")
 	memProfile = flag.String("memprof", "", "Profile memory usage into a file")
+	debug      = flag.Bool("vkdbg", false, "Load Vulkan validation layers")
 )
 
 var configuration = core.Configuration{
@@ -51,6 +53,8 @@ var configuration = core.Configuration{
 	},
 }
 
+var constant float32
+
 func newWindow() *sdl.Window {
 	window, err := sdl.CreateWindow("Koru3D",
 		sdl.WINDOWPOS_UNDEFINED,
@@ -62,9 +66,6 @@ func newWindow() *sdl.Window {
 		panic(err)
 	}
 	return window
-}
-
-func handleWindowEvent(event *sdl.WindowEvent) {
 }
 
 func main() {
@@ -93,7 +94,7 @@ func main() {
 
 	{
 		cfg := core.InstanceConfiguration{
-			DebugMode:  true,
+			DebugMode:  *debug,
 			Extensions: sdlWindow.VulkanGetInstanceExtensions(),
 			Layers:     []string{},
 		}
@@ -130,6 +131,9 @@ func main() {
 	}
 	defer vkRenderer.Destroy()
 
+	srh := vkRenderer.ResourceHandle()
+	crh := vkRenderer.ResourceHandle()
+
 	timeService := core.NewTime(configuration.Time)
 	exitC := make(chan struct{}, 2)
 
@@ -160,9 +164,6 @@ EventLoop:
 			var event sdl.Event
 			for event = sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 				switch et := event.(type) {
-				case *sdl.WindowEvent:
-					handleWindowEvent(et)
-					log.Println("Window event caught")
 				case *sdl.KeyboardEvent:
 					if et.Keysym.Sym == sdl.K_ESCAPE {
 						exitC <- struct{}{}
@@ -173,6 +174,21 @@ EventLoop:
 					continue EventLoop
 				}
 			}
+			if _, ok := <-vkRenderer.ResourceUpdate(srh, core.ResourceInstance{
+				ResourceID: "assets/suzanne.dae",
+				Position:   glm.Translate3D(0, 0, 0),
+				Rotation:   glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
+			}); !ok {
+				fmt.Printf("Error: not updated resource\n")
+			}
+			if _, ok := <-vkRenderer.ResourceUpdate(crh, core.ResourceInstance{
+				ResourceID: "assets/cube.dae",
+				Position:   glm.Translate3D(0, 0, 0),
+				Rotation:   glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
+			}); !ok {
+				fmt.Printf("Error: not updated resource\n")
+			}
+			constant += 0.005
 			if err := vkRenderer.Draw(); err != nil {
 				log.Println("Draw error: " + err.Error())
 			}

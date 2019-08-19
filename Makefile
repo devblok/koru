@@ -51,10 +51,17 @@ fix-vulkan:
 	make clean && \
 	c-for-go -ccdefs -ccincl -out .. vulkan.yml
 
-test-all: test-unit
+test-all: test-unit benchmark
 test-unit:
 	@printf "${COL}Running unit tests${NC}\n"
 	go test ./...
 
+benchmark: benchmark-core benchmark-model
+benchmark-core:
+	@printf "${COL}Benchmarking core package${NC}\n"
+	cd ./core && go test -bench .
+benchmark-model:
+	@printf "${COL}Benchmarking model package${NC}\n"
+	cd ./model && go test -bench .
 clean:
 	rm -rf vendor ${BINARY_FOLDER}

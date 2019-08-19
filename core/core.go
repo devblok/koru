@@ -3,6 +3,7 @@ package core
 import (
 	"unsafe"
 
+	glm "github.com/go-gl/mathgl/mgl32"
 	vk "github.com/vulkan-go/vulkan"
 )
 
@@ -60,6 +61,16 @@ type Renderer interface {
 	// Initialise sets up the configured rendering pipeline
 	Initialise() error
 
+	// ResourceHandle requests for a unique handle for use with the renderer.
+	// Every entity that wishes to be rendered needs to get a unique handle.
+	ResourceHandle() ResourceHandle
+
+	// Update updates the current rendering queue at given handle
+	ResourceUpdate(ResourceHandle, ResourceInstance) <-chan struct{}
+
+	// ResourceDelete removes the resource from rendering queue
+	ResourceDelete(ResourceHandle)
+
 	// Draw draws the frame
 	Draw() error
 
@@ -81,7 +92,8 @@ const (
 	UnknownShaderType
 )
 
-// Shader is an abstraction for shader modules
+// Shader is an abstraction for shader modules.
+// It is safe to destroy after the rendering pipeline is created.
 type Shader interface {
 	Destroyable
 
@@ -94,3 +106,20 @@ type Shader interface {
 	// Name Shader name
 	Name() string
 }
+
+// ResourceInstance represents an instance in the renderer.
+// Contains all the data, should be updated all at once.
+type ResourceInstance struct {
+
+	// ResourceID tells the renderer which resource to load from packages
+	ResourceID string
+
+	// Position matrix for the Resource
+	Position glm.Mat4
+
+	// Rotation matrix for the Resource
+	Rotation glm.Mat4
+}
+
+// ResourceHandle identifies the resource instance in the renderer
+type ResourceHandle uint32

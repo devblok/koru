@@ -60,7 +60,9 @@ type sliceHeader struct {
 	Cap  int
 }
 
-func sliceUint32(data []byte) []uint32 {
+// SliceUint32 reslices bytes into a uint32, that is used
+// to sumbit vulkan shaders for processing
+func SliceUint32(data []byte) []uint32 {
 	const m = 0x7fffffff
 	return (*[m / 4]uint32)(unsafe.Pointer((*sliceHeader)(unsafe.Pointer(&data)).Data))[:len(data)/4]
 }
@@ -77,7 +79,9 @@ func safeStrings(sgs []string) []string {
 	return safe
 }
 
-func getPixels(img image.Image, rowPitch int) ([]uint8, error) {
+// GetPixels transforms a given image into right arrangement of pixels
+// by drawing the decoded image onto a controlled RGBA canvas
+func GetPixels(img image.Image, rowPitch int) ([]uint8, error) {
 	newImg := image.NewRGBA(img.Bounds())
 	if rowPitch <= 4*img.Bounds().Dy() {
 		// apply the proposed row pitch only if supported,
