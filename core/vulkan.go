@@ -1070,7 +1070,7 @@ func (v *VulkanRenderer) buildCommandBuffers(imageIdx uint32) error {
 		for _, instance := range v.instances {
 			if instance.ResourceID == rs.id {
 				pc := pushConstant{
-					Model: instance.Rotation,
+					Model: instance.Position.Mul4(instance.Rotation),
 				}
 				vk.CmdPushConstants(v.commandBuffers[imageIdx], v.pipelineLayout, vk.ShaderStageFlags(vk.ShaderStageVertexBit), 0, uint32(unsafe.Sizeof(pushConstant{})), unsafe.Pointer(&pc))
 				vk.CmdDraw(v.commandBuffers[imageIdx], rs.numVertices, 1, 0, 0)
