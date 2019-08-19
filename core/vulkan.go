@@ -194,6 +194,7 @@ func NewVulkanRenderer(instance Instance, cfg RendererConfiguration) (Renderer, 
 		surface:              instance.Surface(),
 		physicalDevice:       instance.AvailableDevices()[0],
 		resourcePositions:    make(map[string]int),
+		instances:            make(map[ResourceHandle]ResourceInstance),
 	}, nil
 }
 
@@ -454,16 +455,14 @@ func (v *VulkanRenderer) Initialise() error {
 		return err
 	}
 
-	if err := v.loadResourceSet(); err != nil {
-		return err
-	}
+	// if err := v.loadResourceSet("assets/suzanne.dae"); err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
 
-func (v *VulkanRenderer) loadResourceSet() error {
-	key := "assets/suzanne.dae"
-
+func (v *VulkanRenderer) loadResourceSet(key string) error {
 	data, err := ioutil.ReadFile(key)
 	if err != nil {
 		return err
@@ -486,6 +485,7 @@ func (v *VulkanRenderer) loadResourceSet() error {
 	}
 
 	rs := resourceSet{
+		id:          key,
 		device:      v.logicalDevice,
 		numVertices: uint32(len(obj.Vertices())),
 	}
@@ -1059,10 +1059,24 @@ func (v *VulkanRenderer) buildCommandBuffers(imageIdx uint32) error {
 
 	// TODO: Instancing with PushConstants
 	v.resourceLock.RLock()
-	for k := range v.resources {
-		vk.CmdBindVertexBuffers(v.commandBuffers[imageIdx], 0, 1, []vk.Buffer{v.resources[k].vertexBuffer}, []vk.DeviceSize{0})
-		vk.CmdBindDescriptorSets(v.commandBuffers[imageIdx], vk.PipelineBindPointGraphics, v.pipelineLayout, 0, 1, v.resources[k].descriptorSets, 0, nil)
-		vk.CmdDraw(v.commandBuffers[imageIdx], v.resources[k].numVertices, 1, 0, 0)
+	for _, rs := range v.resources {
+		if rs.Destroyed() {
+			continue
+		}
+
+		vk.CmdBindVertexBuffers(v.commandBuffers[imageIdx], 0, 1, []vk.Buffer{rs.vertexBuffer}, []vk.DeviceSize{0})
+		vk.CmdBindDescriptorSets(v.commandBuffers[imageIdx], vk.PipelineBindPointGraphics, v.pipelineLayout, 0, 1, rs.descriptorSets, 0, nil)
+		v.instanceLock.RLock()
+		for _, instance := range v.instances {
+			if instance.ResourceID == rs.id {
+				pc := pushConstant{
+					Model: instance.Rotation,
+				}
+				vk.CmdPushConstants(v.commandBuffers[imageIdx], v.pipelineLayout, vk.ShaderStageFlags(vk.ShaderStageVertexBit), 0, uint32(unsafe.Sizeof(pushConstant{})), unsafe.Pointer(&pc))
+				vk.CmdDraw(v.commandBuffers[imageIdx], rs.numVertices, 1, 0, 0)
+			}
+		}
+		v.instanceLock.RUnlock()
 	}
 	v.resourceLock.RUnlock()
 
@@ -1079,7 +1093,6 @@ var constant float32
 func (v *VulkanRenderer) updateUniformBuffers(imageIdx uint32, set *resourceSet) {
 	constant += 0.005
 	ubo := model.Uniform{
-		Model:      glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
 		View:       glm.LookAt(2, 2, 2, 0, 0, 0, 0, 0, 1),
 		Projection: glm.Perspective(45, (float32)(v.currentSurfaceWidth)/(float32)(v.currentSurfaceHeight), 0.1, 10),
 	}
@@ -1248,7 +1261,7 @@ func (v *VulkanRenderer) prepareDescriptorPool() error {
 		}}
 	dpci := vk.DescriptorPoolCreateInfo{
 		SType:         vk.StructureTypeDescriptorPoolCreateInfo,
-		MaxSets:       uint32(len(v.swapchainImages)) * uint32(len(poolSizes)),
+		MaxSets:       uint32(len(v.swapchainImages)) * uint32(len(poolSizes)) * 100,
 		PoolSizeCount: uint32(len(poolSizes)),
 		PPoolSizes:    poolSizes,
 	}
@@ -1651,10 +1664,20 @@ func (v *VulkanRenderer) createPipelineLayout() error {
 	}
 	v.descriptorSetLayouts = descriptorSetLayouts
 
+	pcr := []vk.PushConstantRange{
+		vk.PushConstantRange{
+			Offset:     0,
+			Size:       uint32(unsafe.Sizeof(pushConstant{})),
+			StageFlags: vk.ShaderStageFlags(vk.ShaderStageVertexBit),
+		},
+	}
+
 	plci := vk.PipelineLayoutCreateInfo{
-		SType:          vk.StructureTypePipelineLayoutCreateInfo,
-		SetLayoutCount: uint32(len(v.descriptorSetLayouts)),
-		PSetLayouts:    v.descriptorSetLayouts,
+		SType:                  vk.StructureTypePipelineLayoutCreateInfo,
+		SetLayoutCount:         uint32(len(v.descriptorSetLayouts)),
+		PSetLayouts:            v.descriptorSetLayouts,
+		PushConstantRangeCount: uint32(len(pcr)),
+		PPushConstantRanges:    pcr,
 	}
 
 	var pipelineLayout vk.PipelineLayout
@@ -1785,19 +1808,23 @@ func (v *VulkanRenderer) loadShaders() error {
 }
 
 // ResourceHandle implements interface
-// TODO: Handles shouldn't be a infinitely increasing counter, someday it will wrap around on a long run
-func (v *VulkanRenderer) ResourceHandle() (ResourceHandle, error) {
+func (v *VulkanRenderer) ResourceHandle() ResourceHandle {
+	// TODO: Handles shouldn't be a infinitely increasing counter, someday it will wrap around on a long run
 	defer func() { atomic.AddUint32(&v.instanceCounter, 1) }()
 	handle := atomic.LoadUint32(&v.instanceCounter)
-	return ResourceHandle(handle), nil
+	return ResourceHandle(handle)
 }
 
 // ResourceUpdate implements interface
 func (v *VulkanRenderer) ResourceUpdate(handle ResourceHandle, instance ResourceInstance) <-chan struct{} {
-	sig := make(chan struct{})
+	sig := make(chan struct{}, 1)
+	if _, ok := v.resourcePositions[instance.ResourceID]; !ok {
+		if err := v.loadResourceSet(instance.ResourceID); err != nil {
+			defer close(sig)
+			return sig
+		}
+	}
 	defer func() { sig <- struct{}{} }()
-
-	// TODO: implement checking if resource is loaded and ready
 
 	v.instanceLock.Lock()
 	defer v.instanceLock.Unlock()
@@ -1808,6 +1835,7 @@ func (v *VulkanRenderer) ResourceUpdate(handle ResourceHandle, instance Resource
 
 // ResourceDelete implements interface
 func (v *VulkanRenderer) ResourceDelete(handle ResourceHandle) {
+	// TODO: unload empty resource sets
 	v.instanceLock.Lock()
 	defer v.instanceLock.Unlock()
 	delete(v.instances, handle)
@@ -1942,6 +1970,9 @@ type resourceSet struct {
 
 	device vk.Device
 
+	destroyed bool
+	id        string
+
 	numVertices          uint32
 	vertexBuffer         vk.Buffer
 	vertexMemory         vk.DeviceMemory
@@ -1958,6 +1989,7 @@ type resourceSet struct {
 }
 
 func (rs *resourceSet) Destroy() {
+	rs.destroyed = true
 	for _, mem := range rs.uniformBuffersMemory {
 		vk.FreeMemory(rs.device, mem, nil)
 	}
@@ -1974,4 +2006,13 @@ func (rs *resourceSet) Destroy() {
 	vk.FreeMemory(rs.device, rs.textureImageMemory, nil)
 	vk.DestroyImageView(rs.device, rs.textureImageView, nil)
 	vk.DestroyImage(rs.device, rs.textureImage, nil)
+}
+
+// Destroyed checks if the resource is destroyed or not
+func (rs *resourceSet) Destroyed() bool {
+	return rs.destroyed
+}
+
+type pushConstant struct {
+	Model glm.Mat4
 }

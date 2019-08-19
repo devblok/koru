@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	"github.com/devblok/koru/core"
+	glm "github.com/go-gl/mathgl/mgl32"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
@@ -34,6 +35,7 @@ var (
 var (
 	cpuProfile = flag.String("cpuprof", "", "Profile CPU usage to file")
 	memProfile = flag.String("memprof", "", "Profile memory usage into a file")
+	debug      = flag.Bool("vkdbg", false, "Load Vulkan validation layers")
 )
 
 var configuration = core.Configuration{
@@ -50,6 +52,8 @@ var configuration = core.Configuration{
 		ShaderDirectory: "./shaders",
 	},
 }
+
+var constant float32
 
 func newWindow() *sdl.Window {
 	window, err := sdl.CreateWindow("Koru3D",
@@ -93,7 +97,7 @@ func main() {
 
 	{
 		cfg := core.InstanceConfiguration{
-			DebugMode:  true,
+			DebugMode:  *debug,
 			Extensions: sdlWindow.VulkanGetInstanceExtensions(),
 			Layers:     []string{},
 		}
@@ -129,6 +133,8 @@ func main() {
 		panic(err)
 	}
 	defer vkRenderer.Destroy()
+
+	rh := vkRenderer.ResourceHandle()
 
 	timeService := core.NewTime(configuration.Time)
 	exitC := make(chan struct{}, 2)
@@ -173,6 +179,14 @@ EventLoop:
 					continue EventLoop
 				}
 			}
+			if _, ok := <-vkRenderer.ResourceUpdate(rh, core.ResourceInstance{
+				ResourceID: "assets/suzanne.dae",
+				Position:   glm.Mat4{},
+				Rotation:   glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
+			}); !ok {
+				fmt.Printf("Error: not updated resource\n")
+			}
+			constant += 0.005
 			if err := vkRenderer.Draw(); err != nil {
 				log.Println("Draw error: " + err.Error())
 			}

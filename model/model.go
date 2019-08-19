@@ -59,7 +59,6 @@ type Texture struct {
 
 // Uniform defines a model-view-projection object
 type Uniform struct {
-	Model      glm.Mat4
 	View       glm.Mat4
 	Projection glm.Mat4
 }
