@@ -1253,11 +1253,11 @@ func (v *VulkanRenderer) prepareDescriptorPool() error {
 	poolSizes := []vk.DescriptorPoolSize{
 		{
 			Type:            vk.DescriptorTypeUniformBuffer,
-			DescriptorCount: uint32(len(v.swapchainImages)),
+			DescriptorCount: uint32(len(v.swapchainImages)) * 100,
 		},
 		{
 			Type:            vk.DescriptorTypeCombinedImageSampler,
-			DescriptorCount: uint32(len(v.swapchainImages)),
+			DescriptorCount: uint32(len(v.swapchainImages)) * 100,
 		}}
 	dpci := vk.DescriptorPoolCreateInfo{
 		SType:         vk.StructureTypeDescriptorPoolCreateInfo,

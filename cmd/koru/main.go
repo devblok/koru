@@ -55,6 +55,7 @@ var configuration = core.Configuration{
 
 var constant float32
 var loadResource bool
+var resource string
 
 func newWindow() *sdl.Window {
 	window, err := sdl.CreateWindow("Koru3D",
@@ -67,9 +68,6 @@ func newWindow() *sdl.Window {
 		panic(err)
 	}
 	return window
-}
-
-func handleWindowEvent(event *sdl.WindowEvent) {
 }
 
 func main() {
@@ -137,6 +135,7 @@ func main() {
 
 	rh := vkRenderer.ResourceHandle()
 	loadResource = true
+	resource = "assets/suzanne.dae"
 	t := time.Now()
 
 	timeService := core.NewTime(configuration.Time)
@@ -169,15 +168,12 @@ EventLoop:
 			var event sdl.Event
 			for event = sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 				switch et := event.(type) {
-				case *sdl.WindowEvent:
-					handleWindowEvent(et)
-					log.Println("Window event caught")
 				case *sdl.KeyboardEvent:
 					if et.Keysym.Sym == sdl.K_ESCAPE {
 						exitC <- struct{}{}
 						continue EventLoop
 					} else if et.Keysym.Sym == sdl.K_SPACE {
-						if t.Add(1 * time.Second).Before(time.Now()) {
+						if t.Add(100 * time.Millisecond).Before(time.Now()) {
 							if loadResource {
 								vkRenderer.ResourceDelete(rh)
 								loadResource = false
@@ -187,6 +183,17 @@ EventLoop:
 							}
 							t = time.Now()
 						}
+					} else if et.Keysym.Sym == sdl.K_r {
+						if t.Add(100 * time.Millisecond).Before(time.Now()) {
+							vkRenderer.ResourceDelete(rh)
+							rh = vkRenderer.ResourceHandle()
+							if resource == "assets/suzanne.dae" {
+								resource = "assets/cube.dae"
+							} else {
+								resource = "assets/suzanne.dae"
+							}
+						}
+						t = time.Now()
 					}
 				case *sdl.QuitEvent:
 					exitC <- struct{}{}
@@ -195,7 +202,7 @@ EventLoop:
 			}
 			if loadResource {
 				if _, ok := <-vkRenderer.ResourceUpdate(rh, core.ResourceInstance{
-					ResourceID: "assets/suzanne.dae",
+					ResourceID: resource,
 					Position:   glm.Translate3D(0, 0, 0),
 					Rotation:   glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
 				}); !ok {
