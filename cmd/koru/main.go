@@ -54,8 +54,6 @@ var configuration = core.Configuration{
 }
 
 var constant float32
-var loadResource bool
-var resource string
 
 func newWindow() *sdl.Window {
 	window, err := sdl.CreateWindow("Koru3D",
@@ -133,10 +131,8 @@ func main() {
 	}
 	defer vkRenderer.Destroy()
 
-	rh := vkRenderer.ResourceHandle()
-	loadResource = true
-	resource = "assets/suzanne.dae"
-	t := time.Now()
+	srh := vkRenderer.ResourceHandle()
+	crh := vkRenderer.ResourceHandle()
 
 	timeService := core.NewTime(configuration.Time)
 	exitC := make(chan struct{}, 2)
@@ -172,44 +168,27 @@ EventLoop:
 					if et.Keysym.Sym == sdl.K_ESCAPE {
 						exitC <- struct{}{}
 						continue EventLoop
-					} else if et.Keysym.Sym == sdl.K_SPACE {
-						if t.Add(100 * time.Millisecond).Before(time.Now()) {
-							if loadResource {
-								vkRenderer.ResourceDelete(rh)
-								loadResource = false
-							} else {
-								rh = vkRenderer.ResourceHandle()
-								loadResource = true
-							}
-							t = time.Now()
-						}
-					} else if et.Keysym.Sym == sdl.K_r {
-						if t.Add(100 * time.Millisecond).Before(time.Now()) {
-							vkRenderer.ResourceDelete(rh)
-							rh = vkRenderer.ResourceHandle()
-							if resource == "assets/suzanne.dae" {
-								resource = "assets/cube.dae"
-							} else {
-								resource = "assets/suzanne.dae"
-							}
-						}
-						t = time.Now()
 					}
 				case *sdl.QuitEvent:
 					exitC <- struct{}{}
 					continue EventLoop
 				}
 			}
-			if loadResource {
-				if _, ok := <-vkRenderer.ResourceUpdate(rh, core.ResourceInstance{
-					ResourceID: resource,
-					Position:   glm.Translate3D(0, 0, 0),
-					Rotation:   glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
-				}); !ok {
-					fmt.Printf("Error: not updated resource\n")
-				}
-				constant += 0.005
+			if _, ok := <-vkRenderer.ResourceUpdate(srh, core.ResourceInstance{
+				ResourceID: "assets/suzanne.dae",
+				Position:   glm.Translate3D(0, 0, 0),
+				Rotation:   glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
+			}); !ok {
+				fmt.Printf("Error: not updated resource\n")
 			}
+			if _, ok := <-vkRenderer.ResourceUpdate(crh, core.ResourceInstance{
+				ResourceID: "assets/cube.dae",
+				Position:   glm.Translate3D(0, 0, 0),
+				Rotation:   glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
+			}); !ok {
+				fmt.Printf("Error: not updated resource\n")
+			}
+			constant += 0.005
 			if err := vkRenderer.Draw(); err != nil {
 				log.Println("Draw error: " + err.Error())
 			}
