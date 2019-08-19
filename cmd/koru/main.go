@@ -54,6 +54,7 @@ var configuration = core.Configuration{
 }
 
 var constant float32
+var loadResource bool
 
 func newWindow() *sdl.Window {
 	window, err := sdl.CreateWindow("Koru3D",
@@ -135,6 +136,8 @@ func main() {
 	defer vkRenderer.Destroy()
 
 	rh := vkRenderer.ResourceHandle()
+	loadResource = true
+	t := time.Now()
 
 	timeService := core.NewTime(configuration.Time)
 	exitC := make(chan struct{}, 2)
@@ -173,20 +176,33 @@ EventLoop:
 					if et.Keysym.Sym == sdl.K_ESCAPE {
 						exitC <- struct{}{}
 						continue EventLoop
+					} else if et.Keysym.Sym == sdl.K_SPACE {
+						if t.Add(1 * time.Second).Before(time.Now()) {
+							if loadResource {
+								vkRenderer.ResourceDelete(rh)
+								loadResource = false
+							} else {
+								rh = vkRenderer.ResourceHandle()
+								loadResource = true
+							}
+							t = time.Now()
+						}
 					}
 				case *sdl.QuitEvent:
 					exitC <- struct{}{}
 					continue EventLoop
 				}
 			}
-			if _, ok := <-vkRenderer.ResourceUpdate(rh, core.ResourceInstance{
-				ResourceID: "assets/suzanne.dae",
-				Position:   glm.Mat4{},
-				Rotation:   glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
-			}); !ok {
-				fmt.Printf("Error: not updated resource\n")
+			if loadResource {
+				if _, ok := <-vkRenderer.ResourceUpdate(rh, core.ResourceInstance{
+					ResourceID: "assets/suzanne.dae",
+					Position:   glm.Translate3D(0, 0, 0),
+					Rotation:   glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
+				}); !ok {
+					fmt.Printf("Error: not updated resource\n")
+				}
+				constant += 0.005
 			}
-			constant += 0.005
 			if err := vkRenderer.Draw(); err != nil {
 				log.Println("Draw error: " + err.Error())
 			}
