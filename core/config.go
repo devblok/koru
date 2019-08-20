@@ -19,6 +19,10 @@ type TimeConfiguration struct {
 	// FramesPerSecond caps frames per second that is put out
 	// To unlimit, set to 0
 	FramesPerSecond int
+
+	// EventPollDelay configures the event loop with this delay
+	// in milliseconds
+	EventPollDelay int
 }
 
 // RendererConfiguration is used to configure the renderer

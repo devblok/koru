@@ -8,6 +8,8 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"runtime/trace"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -33,14 +35,16 @@ var (
 
 // Profiling
 var (
-	cpuProfile = flag.String("cpuprof", "", "Profile CPU usage to file")
-	memProfile = flag.String("memprof", "", "Profile memory usage into a file")
-	debug      = flag.Bool("vkdbg", false, "Load Vulkan validation layers")
+	cpuProfile   = flag.String("cpuprof", "", "Profile CPU usage to file")
+	memProfile   = flag.String("memprof", "", "Profile memory usage into a file")
+	traceProfile = flag.String("trace", "", "Trace output for profiling")
+	debug        = flag.Bool("vkdbg", false, "Load Vulkan validation layers")
 )
 
 var configuration = core.Configuration{
 	Time: core.TimeConfiguration{
 		FramesPerSecond: 60,
+		EventPollDelay:  50,
 	},
 	Renderer: core.RendererConfiguration{
 		ScreenWidth:   800,
@@ -79,8 +83,19 @@ func main() {
 		if err := pprof.StartCPUProfile(f); err != nil {
 			panic(err)
 		}
+		defer pprof.StopCPUProfile()
 	}
-	defer pprof.StopCPUProfile()
+
+	if *traceProfile != "" {
+		f, err := os.Create(*traceProfile)
+		if err != nil {
+			panic(err)
+		}
+		if err := trace.Start(f); err != nil {
+			panic(err)
+		}
+		defer trace.Stop()
+	}
 
 	if err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS); err != nil {
 		panic(err)
@@ -135,16 +150,19 @@ func main() {
 	crh := vkRenderer.ResourceHandle()
 
 	timeService := core.NewTime(configuration.Time)
-	exitC := make(chan struct{}, 2)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
-	go func(ctx context.Context) {
+	programSync := sync.WaitGroup{}
+
+	/* Frame counter loop */
+	programSync.Add(1)
+	go func(ctx context.Context, wg *sync.WaitGroup) {
+	CounterLoop:
 		for {
 			select {
 			case <-ctx.Done():
-				return
+				break CounterLoop
 			default:
 				currentCount := atomic.LoadInt64(&frameCounter)
 				atomic.StoreInt64(&frameCounter, 0)
@@ -152,49 +170,71 @@ func main() {
 				time.Sleep(1 * time.Second)
 			}
 		}
-	}(ctx)
+		wg.Done()
+	}(ctx, &programSync)
 
-EventLoop:
-	for {
-		select {
-		case <-exitC:
-			log.Println("Event loop exited")
-			break EventLoop
-		case <-timeService.FpsTicker().C:
-			var event sdl.Event
-			for event = sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
-				switch et := event.(type) {
-				case *sdl.KeyboardEvent:
-					if et.Keysym.Sym == sdl.K_ESCAPE {
-						exitC <- struct{}{}
+	/* Event loop */
+	programSync.Add(1)
+	go func(cancel context.CancelFunc, wg *sync.WaitGroup) {
+	EventLoop:
+		for {
+			select {
+			case <-ctx.Done():
+				break EventLoop
+			case <-timeService.EventTicker().C:
+				var event sdl.Event
+				for event = sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
+					switch et := event.(type) {
+					case *sdl.KeyboardEvent:
+						if et.Keysym.Sym == sdl.K_ESCAPE {
+							cancel()
+							continue EventLoop
+						}
+					case *sdl.QuitEvent:
+						cancel()
 						continue EventLoop
 					}
-				case *sdl.QuitEvent:
-					exitC <- struct{}{}
-					continue EventLoop
 				}
 			}
-			if _, ok := <-vkRenderer.ResourceUpdate(srh, core.ResourceInstance{
-				ResourceID: "assets/suzanne.dae",
-				Position:   glm.Translate3D(0, 0, 0),
-				Rotation:   glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
-			}); !ok {
-				fmt.Printf("Error: not updated resource\n")
-			}
-			if _, ok := <-vkRenderer.ResourceUpdate(crh, core.ResourceInstance{
-				ResourceID: "assets/cube.dae",
-				Position:   glm.Translate3D(0, 0, 0),
-				Rotation:   glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
-			}); !ok {
-				fmt.Printf("Error: not updated resource\n")
-			}
-			constant += 0.005
-			if err := vkRenderer.Draw(); err != nil {
-				log.Println("Draw error: " + err.Error())
-			}
-			atomic.AddInt64(&frameCounter, 1)
 		}
-	}
+		wg.Done()
+	}(cancel, &programSync)
+
+	/* Renderer loop */
+	programSync.Add(1)
+	go func(ctx context.Context, wg *sync.WaitGroup) {
+	FrameLoop:
+		for {
+			select {
+			case <-ctx.Done():
+				log.Println("Event loop exited")
+				break FrameLoop
+			case <-timeService.FpsTicker().C:
+				if _, ok := <-vkRenderer.ResourceUpdate(srh, core.ResourceInstance{
+					ResourceID: "assets/suzanne.dae",
+					Position:   glm.Translate3D(0, 0, 0),
+					Rotation:   glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
+				}); !ok {
+					fmt.Printf("Error: not updated resource\n")
+				}
+				if _, ok := <-vkRenderer.ResourceUpdate(crh, core.ResourceInstance{
+					ResourceID: "assets/cube.dae",
+					Position:   glm.Translate3D(0, 0, 0),
+					Rotation:   glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
+				}); !ok {
+					fmt.Printf("Error: not updated resource\n")
+				}
+				constant += 0.005
+				if err := vkRenderer.Draw(); err != nil {
+					log.Println("Draw error: " + err.Error())
+				}
+				atomic.AddInt64(&frameCounter, 1)
+			}
+		}
+		wg.Done()
+	}(ctx, &programSync)
+
+	programSync.Wait()
 
 	if *memProfile != "" {
 		f, err := os.Create(*memProfile)

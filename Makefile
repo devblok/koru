@@ -42,7 +42,7 @@ ${BINARY_FOLDER}/shaders: ${BINARY_FOLDER}
 
 Linux:
 	@printf "${COL}Linux specific prepare${NC}\n"
-Darwin:
+Darwin: vendor
 	@printf "${COL}Darwin specific prepare${NC}\n"
 	
 fix-vulkan:
