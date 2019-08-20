@@ -173,33 +173,6 @@ func main() {
 		wg.Done()
 	}(ctx, &programSync)
 
-	/* Event loop */
-	programSync.Add(1)
-	go func(cancel context.CancelFunc, wg *sync.WaitGroup) {
-	EventLoop:
-		for {
-			select {
-			case <-ctx.Done():
-				break EventLoop
-			case <-timeService.EventTicker().C:
-				var event sdl.Event
-				for event = sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
-					switch et := event.(type) {
-					case *sdl.KeyboardEvent:
-						if et.Keysym.Sym == sdl.K_ESCAPE {
-							cancel()
-							continue EventLoop
-						}
-					case *sdl.QuitEvent:
-						cancel()
-						continue EventLoop
-					}
-				}
-			}
-		}
-		wg.Done()
-	}(cancel, &programSync)
-
 	/* Renderer loop */
 	programSync.Add(1)
 	go func(ctx context.Context, wg *sync.WaitGroup) {
@@ -233,6 +206,29 @@ func main() {
 		}
 		wg.Done()
 	}(ctx, &programSync)
+
+	/* Event loop */
+EventLoop:
+	for {
+		select {
+		case <-ctx.Done():
+			break EventLoop
+		case <-timeService.EventTicker().C:
+			var event sdl.Event
+			for event = sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
+				switch et := event.(type) {
+				case *sdl.KeyboardEvent:
+					if et.Keysym.Sym == sdl.K_ESCAPE {
+						cancel()
+						continue EventLoop
+					}
+				case *sdl.QuitEvent:
+					cancel()
+					continue EventLoop
+				}
+			}
+		}
+	}
 
 	programSync.Wait()
 
