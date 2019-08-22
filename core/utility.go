@@ -1,3 +1,8 @@
+// Copyright (c) 2019 devblok
+// 
+// This software is released under the MIT License.
+// https://opensource.org/licenses/MIT
+
 package core
 
 import (
@@ -58,7 +63,7 @@ type sliceHeader struct {
 	Data uintptr
 	Len  int
 	Cap  int
-}
+}\
 
 // SliceUint32 reslices bytes into a uint32, that is used
 // to sumbit vulkan shaders for processing
