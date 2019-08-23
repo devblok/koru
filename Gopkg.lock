@@ -67,6 +67,17 @@
   version = "v1.0.2"
 
 [[projects]]
+  digest = "1:b5e6db1f0095a7427712ba7f5890d6c0cb6b61d6f9d76bc5a4e3d2344461e652"
+  name = "github.com/pierrec/lz4"
+  packages = [
+    ".",
+    "internal/xxh32",
+  ]
+  pruneopts = "UT"
+  revision = "8ef35db8296124c4969aab929c16c91c3cb2c8a0"
+  version = "v2.2.6"
+
+[[projects]]
   digest = "1:e09ada96a5a41deda4748b1659cc8953961799e798aea557257b56baee4ecaf3"
   name = "github.com/rogpeppe/go-internal"
   packages = [
@@ -87,7 +98,7 @@
   version = "v1.4.2"
 
 [[projects]]
-  digest = "1:e8133b504826a51e76e5eae75e4980756e5b8a65a1e4e6802d8e23941ab8976e"
+  digest = "1:c9a7ac54954309f1157c9ee84c92ea632ee4946c1cb6368903be863301b16308"
   name = "github.com/veandco/go-sdl2"
   packages = ["sdl"]
   pruneopts = "UT"
@@ -125,6 +136,7 @@
     "github.com/gobuffalo/packr",
     "github.com/gotk3/gotk3/glib",
     "github.com/gotk3/gotk3/gtk",
+    "github.com/pierrec/lz4",
     "github.com/sirupsen/logrus",
     "github.com/veandco/go-sdl2/sdl",
     "github.com/vulkan-go/vulkan",

@@ -7,9 +7,9 @@
 At this stage, this project is merely my playground to try out Vulkan along
 with a bunch of different things both in Go and technology in general.
 
-Things to try (roughly in descending order of priority):
+## Things to try (roughly in descending order of priority):
 - [x] Vulkan
-- [x] [Packr](https://github.com/gobuffalo/packr) (I was looking a nice go-bindata alternative for a while)
+- [x] [Packr](https://github.com/gobuffalo/packr)
 - [x] gotk3 GUI that's loaded from glade resources
 - [x] One binary - whole engine (except maybe plugins)
 - [ ] Support major platforms
@@ -23,3 +23,7 @@ Things to try (roughly in descending order of priority):
 - [ ] An AI engine (experiment with neural networks too)
 - [ ] Artificial intelligence that utilises GPU? [gorgonia](https://github.com/gorgonia/gorgonia)
 - [ ] Design an actual game
+
+## Known bugs
+
+- go-sdl does not yet release vulkan bindings, therefore Gopkg contains a commit from master. `dep ensure` likes to reset the verision to a newest tag. Keep an eye on it when updating packages.
