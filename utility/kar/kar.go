@@ -14,3 +14,11 @@
 // package. It instead focuses on getting resources from disk to a usable
 // state as fast as possible. It can be read from concurrently.
 package kar
+
+import "errors"
+
+// package errors
+var (
+	ErrFileFormat = errors.New("corrupted or not a kar archive")
+	ErrTempFail   = errors.New("temporary folder or file operation failed")
+)

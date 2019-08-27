@@ -8,7 +8,7 @@ SCOL=\033[0;32m # Success color - green
 NC=\033[0m # No Color
 
 all: build-all
-build-all: ${OS} koru korucli korued test-all
+build-all: ${OS} kar koru korucli korued test-all
 	@printf "${SCOL}Built everything${NC}\n"
 ${BINARY_FOLDER}/koru: koru
 ${BINARY_FOLDER}/korucli: korucli
@@ -23,6 +23,10 @@ vendor:
 	@printf "${COL}Installing dependencies${NC}\n"
 	dep ensure
 	make fix-vulkan
+kar: vendor ${BINARY_FOLDER}
+	@printf "${COL}Compiling kar${NC}\n"
+	cd ./cmd/kar && \
+	go build -o ../../${BINARY_FOLDER}/kar ${FLAGS}
 koru: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@printf "${COL}Compiling koru${NC}\n"
 	cd ./cmd/koru && \
