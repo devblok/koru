@@ -186,7 +186,7 @@ func gobEncode(data interface{}) ([]byte, error) {
 	return encoded.Bytes(), nil
 }
 
-func gobDecode(obj *interface{}, bts []byte) error {
+func gobDecode(obj interface{}, bts []byte) error {
 	dec := gob.NewDecoder(bytes.NewBuffer(bts))
 	if err := dec.Decode(obj); err != nil {
 		return err

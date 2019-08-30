@@ -7,43 +7,78 @@ package kar
 
 import (
 	"io"
-	"os"
+	"strings"
 )
 
-// NewReader creates a reader from r. It will also check
-// if the file is actually a kar archive, will return error
+// Open opens the kar archived from r. It will also check
+// if the file is actually a kar archive, will return an error
 // when file incorrect.
-func NewReader(r io.ReaderAt) (*Reader, error) {
-	return &Reader{
+func Open(r io.ReaderAt) (*Archive, error) {
+	ar := Archive{
 		reader: r,
-	}, nil
+	}
+
+	magic := make([]byte, MagicLength)
+	if num, err := r.ReadAt(magic, 0); err != nil {
+		return nil, err
+	} else if num < MagicLength || strings.Compare(string(magic), "KAR\x00") != 0 {
+		return nil, ErrFileFormat
+	}
+
+	headerSizeBytes := make([]byte, HeaderSizeNumberLength)
+	if num, err := r.ReadAt(headerSizeBytes, MagicLength); err != nil {
+		return nil, err
+	} else if num < HeaderSizeNumberLength {
+		return nil, ErrFileFormat
+	}
+
+	headerSize, err := binaryToint64(headerSizeBytes)
+	if err != nil {
+		return nil, ErrFileFormat
+	}
+
+	headerBytes := make([]byte, headerSize)
+	if num, err := r.ReadAt(headerBytes, MagicLength+HeaderSizeNumberLength); err != nil {
+		return nil, err
+	} else if int64(num) < headerSize {
+		return nil, ErrFileFormat
+	}
+
+	var header *Header
+	if err := gobDecode(header, headerBytes); err != nil {
+		return nil, err
+	}
+
+	return &ar, nil
 }
 
-// Reader provides concurrent io for a kar file, and provides
-// an os.File compatible layer to read files.
-type Reader struct {
-	// TODO: Implement a File like interface, so this archive and files could
-	// potentially be used interchangeably. This means giving out handles from this package.
+// Archive provides concurrent io for a kar file, and can provide
+// an io.Reader for each file separately to perform actions on.
+type Archive struct {
 	reader io.ReaderAt
 }
 
-// ReadAll queries for the contents of given name
-func (r *Reader) ReadAll(name string) ([]byte, error) {
+// ReadAll returns the entire contents of a file with a given name
+func (a *Archive) ReadAll(file string) ([]byte, error) {
 	return []byte{}, nil
 }
 
-// Open opens a file on the archive and returns the imaginary handle.
-func (r *Reader) Open(name string) (*File, error) {
-	return &File{
-		reader: r,
+// Open returns a Reader for a file in the Archive
+func (a *Archive) Open(name string) (*Reader, error) {
+	return &Reader{
+		archive: a,
 	}, nil
 }
 
-// File implements the same interface as os.File, for use in situations where a
-// drop-in replacement for it would be useful. It behaves exactly like a file for reads and
-// writes, but other operations for change of ownership and etc have no effect.
-type File struct {
-	os.File
+// Reader is a reader for a single file in an Archive.
+// Abstracts away the location that needs to be known.
+type Reader struct {
+	io.Reader
 
-	reader *Reader
+	archive *Archive
+}
+
+// Read reads already decompressed data
+func (r *Reader) Read(p []byte) (n int, err error) {
+	return 0, nil
 }

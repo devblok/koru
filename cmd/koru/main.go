@@ -206,7 +206,6 @@ func main() {
 				if err := vkRenderer.Draw(); err != nil {
 					log.Println("Draw error: " + err.Error())
 				}
-				runtime.GC()
 				atomic.AddInt64(&frameCounter, 1)
 			}
 		}

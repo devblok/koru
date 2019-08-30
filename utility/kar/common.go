@@ -44,14 +44,16 @@ func (h *Header) MaxExpectedSize() int64 {
 }
 
 func int64ToBinary(num int64) []byte {
-	numBytes := make([]byte, binary.MaxVarintLen64)
-	binary.PutVarint(numBytes, num)
+	numBytes := make([]byte, HeaderSizeNumberLength)
+	if err := binary.Write(bytes.NewBuffer(numBytes), binary.LittleEndian, num); err != nil {
+		panic(err) // If this thing fails you're probably having bigger problems
+	}
 	return numBytes
 }
 
 func binaryToint64(bts []byte) (int64, error) {
-	num, err := binary.ReadVarint(bytes.NewReader(bts))
-	if err != nil {
+	var num int64
+	if err := binary.Read(bytes.NewReader(bts), binary.LittleEndian, &num); err != nil {
 		return 0, err
 	}
 	return num, nil

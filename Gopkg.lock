@@ -98,7 +98,7 @@
   version = "v1.4.2"
 
 [[projects]]
-  digest = "1:c9a7ac54954309f1157c9ee84c92ea632ee4946c1cb6368903be863301b16308"
+  digest = "1:7914b81bf00ec0a132482db8293083cf574c929a536798932868a0b39fc52da6"
   name = "github.com/veandco/go-sdl2"
   packages = ["sdl"]
   pruneopts = "UT"
@@ -111,6 +111,14 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "df48e8cc153843e64eedaf872453d6d07a77dd8c"
+
+[[projects]]
+  branch = "master"
+  digest = "1:feece64517a25b2ffe2a82f2df04255b9914ce3fbfd5263fce681479510990c1"
+  name = "golang.org/x/exp"
+  packages = ["mmap"]
+  pruneopts = "UT"
+  revision = "c13cbed26979984b7dddd468b78daf72f8b4b473"
 
 [[projects]]
   branch = "master"
@@ -140,6 +148,7 @@
     "github.com/sirupsen/logrus",
     "github.com/veandco/go-sdl2/sdl",
     "github.com/vulkan-go/vulkan",
+    "golang.org/x/exp/mmap",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

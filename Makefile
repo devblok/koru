@@ -22,7 +22,7 @@ ${BINARY_FOLDER}/assets: ${BINARY_FOLDER}
 vendor:
 	@printf "${COL}Installing dependencies${NC}\n"
 	dep ensure
-	make fix-vulkan
+	# make fix-vulkan
 kar: vendor ${BINARY_FOLDER}
 	@printf "${COL}Compiling kar${NC}\n"
 	cd ./cmd/kar && \
