@@ -21,6 +21,7 @@ import "errors"
 var (
 	ErrFileFormat = errors.New("corrupted or not a kar archive")
 	ErrTempFail   = errors.New("temporary folder or file operation failed")
+	ErrIOMisc     = errors.New("some unknown error unhandled by the io occured")
 )
 
 // Sizes relevant to the header of file

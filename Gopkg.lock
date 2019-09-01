@@ -98,7 +98,7 @@
   version = "v1.4.2"
 
 [[projects]]
-  digest = "1:7914b81bf00ec0a132482db8293083cf574c929a536798932868a0b39fc52da6"
+  digest = "1:c9a7ac54954309f1157c9ee84c92ea632ee4946c1cb6368903be863301b16308"
   name = "github.com/veandco/go-sdl2"
   packages = ["sdl"]
   pruneopts = "UT"

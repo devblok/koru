@@ -6,8 +6,6 @@
 package kar
 
 import (
-	"bytes"
-	"encoding/gob"
 	"io"
 	"io/ioutil"
 	"log"
@@ -87,6 +85,7 @@ func (b *Builder) Add(name string, r io.Reader) error {
 	if err != nil {
 		return err
 	}
+	writer.Close()
 	if err := f.Sync(); err != nil {
 		return err
 	}
@@ -119,7 +118,7 @@ func (b *Builder) WriteTo(w io.Writer) (int64, error) {
 			Name:           v.Name,
 			Size:           v.Size,
 			CompressedSize: v.Compressed,
-			Offset:         math.MinInt64,
+			Offset:         math.MaxInt64,
 		})
 	}
 
@@ -182,21 +181,4 @@ func (b *Builder) WriteTo(w io.Writer) (int64, error) {
 	// delete the index
 	b.files = b.files[:0]
 	return offset, nil
-}
-
-func gobEncode(data interface{}) ([]byte, error) {
-	var encoded bytes.Buffer
-	enc := gob.NewEncoder(&encoded)
-	if err := enc.Encode(data); err != nil {
-		return nil, err
-	}
-	return encoded.Bytes(), nil
-}
-
-func gobDecode(obj interface{}, bts []byte) error {
-	dec := gob.NewDecoder(bytes.NewBuffer(bts))
-	if err := dec.Decode(obj); err != nil {
-		return err
-	}
-	return nil
 }

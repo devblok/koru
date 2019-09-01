@@ -8,6 +8,7 @@ package kar
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/gob"
 )
 
 // IndexEntry is info for one file in the file index.
@@ -57,4 +58,21 @@ func binaryToint64(bts []byte) (int64, error) {
 		return 0, err
 	}
 	return num, nil
+}
+
+func gobEncode(data interface{}) ([]byte, error) {
+	var encoded bytes.Buffer
+	enc := gob.NewEncoder(&encoded)
+	if err := enc.Encode(data); err != nil {
+		return nil, err
+	}
+	return encoded.Bytes(), nil
+}
+
+func gobDecode(obj interface{}, bts []byte) error {
+	dec := gob.NewDecoder(bytes.NewBuffer(bts))
+	if err := dec.Decode(obj); err != nil {
+		return err
+	}
+	return nil
 }
