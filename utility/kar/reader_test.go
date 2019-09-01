@@ -2,6 +2,7 @@ package kar_test
 
 import (
 	"errors"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -100,5 +101,57 @@ func TestOpenAndReadAll(t *testing.T) {
 		t.Error(err)
 	} else if strings.Compare("this is another test", string(f)) != 0 {
 		t.Error(errors.New("result is not expected value"))
+	}
+}
+
+func BenchmarkReadFromMemoryMapped(b *testing.B) {
+	r, err := mmap.Open("testdata/assets.kar")
+	if err != nil {
+		b.Error(err)
+	}
+
+	ar, err := kar.Open(r)
+	if err != nil {
+		b.Error(err)
+	}
+
+	b.Log(ar)
+
+	for i := 0; i < b.N; i++ {
+		info, err := ar.GetFileInfo("assets/Bricks_COLOR.png")
+		if err != nil {
+			b.Error(err)
+		}
+
+		f, err := ar.Open("assets/Bricks_COLOR.png")
+		if err != nil {
+			b.Error(err)
+		}
+
+		fileContents := make([]byte, info.Size)
+		if _, err := f.Read(fileContents); err != nil && err != io.EOF {
+			b.Error(err)
+		}
+	}
+}
+
+func BenchmarkReadAllFromMemoryMapped(b *testing.B) {
+	r, err := mmap.Open("testdata/assets.kar")
+	if err != nil {
+		b.Error(err)
+	}
+
+	ar, err := kar.Open(r)
+	if err != nil {
+		b.Error(err)
+	}
+
+	b.Log(ar)
+
+	for i := 0; i < b.N; i++ {
+		_, err := ar.ReadAll("assets/Bricks_COLOR.png")
+		if err != nil {
+			b.Error(err)
+		}
 	}
 }
