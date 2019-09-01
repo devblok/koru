@@ -135,9 +135,16 @@ func (b *Builder) WriteTo(w io.Writer) (int64, error) {
 		return 0, err
 	}
 
+	// Always ensure HeaderSizeNumberLength amount of bytes is written
+	if headerSizeBytesWritten < HeaderSizeNumberLength {
+		if _, err := w.Write(make([]byte, HeaderSizeNumberLength-headerSizeBytesWritten)); err != nil {
+			return 0, err
+		}
+	}
+
 	// the offset at which we start writing files
 	offset += int64(magicSize)
-	offset += int64(headerSizeBytesWritten)
+	offset += int64(HeaderSizeNumberLength)
 	offset += headerBytesSize
 
 	// figure out files offsets

@@ -44,8 +44,8 @@ func Open(r io.ReaderAt) (*Archive, error) {
 		return nil, ErrFileFormat
 	}
 
-	var header *Header
-	if err := gobDecode(header, headerBytes); err != nil {
+	var header Header
+	if err := gobDecode(&header, headerBytes); err != nil {
 		return nil, err
 	}
 

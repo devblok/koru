@@ -44,11 +44,11 @@ func (h *Header) MaxExpectedSize() int64 {
 }
 
 func int64ToBinary(num int64) []byte {
-	numBytes := make([]byte, HeaderSizeNumberLength)
-	if err := binary.Write(bytes.NewBuffer(numBytes), binary.LittleEndian, num); err != nil {
+	buf := bytes.NewBuffer([]byte{})
+	if err := binary.Write(buf, binary.LittleEndian, &num); err != nil {
 		panic(err) // If this thing fails you're probably having bigger problems
 	}
-	return numBytes
+	return buf.Bytes()
 }
 
 func binaryToint64(bts []byte) (int64, error) {

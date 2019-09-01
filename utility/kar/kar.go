@@ -23,7 +23,8 @@ var (
 	ErrTempFail   = errors.New("temporary folder or file operation failed")
 )
 
+// Sizes relevant to the header of file
 const (
 	MagicLength            = 4
-	HeaderSizeNumberLength = 8
+	HeaderSizeNumberLength = 16
 )
