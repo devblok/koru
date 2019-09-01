@@ -60,12 +60,15 @@ test-unit:
 	@printf "${COL}Running unit tests${NC}\n"
 	go test ./...
 
-benchmark: benchmark-core benchmark-model
+benchmark: benchmark-core benchmark-model benchmark-kar
 benchmark-core:
 	@printf "${COL}Benchmarking core package${NC}\n"
 	cd ./core && go test -bench .
 benchmark-model:
 	@printf "${COL}Benchmarking model package${NC}\n"
 	cd ./model && go test -bench .
+benchmark-kar:
+	@printf "${COL}Benchmarking kar package${NC}\n"
+	cd ./utility/kar && go test -bench .
 clean:
 	rm -rf vendor ${BINARY_FOLDER}
