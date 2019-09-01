@@ -115,8 +115,6 @@ func BenchmarkReadFromMemoryMapped(b *testing.B) {
 		b.Error(err)
 	}
 
-	b.Log(ar)
-
 	for i := 0; i < b.N; i++ {
 		info, err := ar.GetFileInfo("assets/Bricks_COLOR.png")
 		if err != nil {
@@ -145,8 +143,6 @@ func BenchmarkReadAllFromMemoryMapped(b *testing.B) {
 	if err != nil {
 		b.Error(err)
 	}
-
-	b.Log(ar)
 
 	for i := 0; i < b.N; i++ {
 		_, err := ar.ReadAll("assets/Bricks_COLOR.png")

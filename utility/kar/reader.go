@@ -86,13 +86,17 @@ func (a *Archive) ReadAll(name string) ([]byte, error) {
 		return []byte{}, ErrIOMisc
 	}
 
-	fileContents := make([]byte, e.Size)
+	fileContents := make([]byte, 0, e.Size)
+	buf := make([]byte, 10*1024)
 	reader := lz4.NewReader(bytes.NewReader(rawContents))
-	if n, err := reader.Read(fileContents); err != nil {
-		return []byte{}, err
-	} else if int64(n) < e.Size {
-		return []byte{}, ErrIOMisc
+	for n, err := reader.Read(buf); err != io.EOF; n, err = reader.Read(buf) {
+		fileContents = append(fileContents, buf[:n]...)
 	}
+	// if n, err := reader.Read(fileContents); err != nil {
+	// 	return []byte{}, err
+	// } else if int64(n) < e.Size {
+	// 	return []byte{}, ErrIOMisc
+	// }
 
 	return fileContents, nil
 }
