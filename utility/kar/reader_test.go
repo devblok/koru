@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/devblok/koru/utility/kar"
@@ -80,6 +81,38 @@ func TestOpenAndRead(t *testing.T) {
 	}
 }
 
+func TestOpenAndReadConcurrent(t *testing.T) {
+	r, err := os.Open("testdata/opentest.kar")
+	if err != nil {
+		t.Error(err)
+	}
+
+	ar, err := kar.Open(r)
+	if err != nil {
+		t.Error(err)
+	}
+
+	var wg sync.WaitGroup
+	for idx := 0; idx < 10; idx++ {
+		wg.Add(1)
+		go func() {
+			if f, err := ar.Open("test/test1.txt"); err != nil {
+				t.Error(err)
+			} else if err := readFileAndCompare(f, "this is a test", t); err != nil {
+				t.Error(err)
+			}
+
+			if f, err := ar.Open("test/test2.txt"); err != nil {
+				t.Error(err)
+			} else if err := readFileAndCompare(f, "this is another test", t); err != nil {
+				t.Error(err)
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+}
+
 func TestOpenAndReadAll(t *testing.T) {
 	r, err := os.Open("testdata/opentest.kar")
 	if err != nil {
@@ -102,6 +135,38 @@ func TestOpenAndReadAll(t *testing.T) {
 	} else if strings.Compare("this is another test", string(f)) != 0 {
 		t.Error(errors.New("result is not expected value"))
 	}
+}
+
+func TestOpenAndReadAllConcurrent(t *testing.T) {
+	r, err := os.Open("testdata/opentest.kar")
+	if err != nil {
+		t.Error(err)
+	}
+
+	ar, err := kar.Open(r)
+	if err != nil {
+		t.Error(err)
+	}
+
+	var wg sync.WaitGroup
+	for idx := 0; idx < 10; idx++ {
+		wg.Add(1)
+		go func() {
+			if f, err := ar.ReadAll("test/test1.txt"); err != nil {
+				t.Error(err)
+			} else if strings.Compare("this is a test", string(f)) != 0 {
+				t.Error(errors.New("result is not expected value"))
+			}
+
+			if f, err := ar.ReadAll("test/test2.txt"); err != nil {
+				t.Error(err)
+			} else if strings.Compare("this is another test", string(f)) != 0 {
+				t.Error(errors.New("result is not expected value"))
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }
 
 func BenchmarkReadFromMemoryMapped(b *testing.B) {

@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/pierrec/lz4"
 )
@@ -58,12 +59,16 @@ func Open(r io.ReaderAt) (*Archive, error) {
 // an io.Reader for each file separately to perform actions on.
 type Archive struct {
 	reader io.ReaderAt
+
+	mutex  sync.Mutex
 	header Header
 }
 
 // GetFileInfo queries for a file with a given name in the archive
 // and returns it's info if found. If not found it will return os.ErrNotExist error.
 func (a *Archive) GetFileInfo(name string) (IndexEntry, error) {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
 	for _, f := range a.header.Index {
 		if strings.Compare(name, f.Name) == 0 {
 			return f, nil
@@ -92,11 +97,6 @@ func (a *Archive) ReadAll(name string) ([]byte, error) {
 	for n, err := reader.Read(buf); err != io.EOF; n, err = reader.Read(buf) {
 		fileContents = append(fileContents, buf[:n]...)
 	}
-	// if n, err := reader.Read(fileContents); err != nil {
-	// 	return []byte{}, err
-	// } else if int64(n) < e.Size {
-	// 	return []byte{}, ErrIOMisc
-	// }
 
 	return fileContents, nil
 }
