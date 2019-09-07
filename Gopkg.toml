@@ -44,3 +44,6 @@
 [[constraint]]
   name = "github.com/gobuffalo/packr"
   version = "2.2.0"
+[[constraint]]
+  name = "github.com/pierrec/lz4"
+  version = "2.2.6"

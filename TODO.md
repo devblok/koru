@@ -17,6 +17,7 @@ Small feats, that consist of a list of TODO items, to consider them complete
 - [x] Multiple sets of resources per frame + fences
 - [ ] Contribute by adding VulkanContext to gotk3
 - [ ] Find a way to intelligently set the number of descriptor sets to account for in a pool
+- [ ] Use https://github.com/pkg/errors and Wrap errors (vulkan.go needs this)
 
 ## Editor
 
