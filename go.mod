@@ -3,6 +3,7 @@ module github.com/devblok/koru
 go 1.12
 
 require (
+	github.com/frankban/quicktest v1.4.2 // indirect
 	github.com/go-gl/mathgl v0.0.0-20190713194549-592312d8590a
 	github.com/gobuffalo/envy v1.7.0
 	github.com/gobuffalo/packd v0.3.0

@@ -17,12 +17,12 @@ ${BINARY_FOLDER}:
 	@printf "${COL}Create binary folder${NC}\n"
 	mkdir -p ${BINARY_FOLDER}
 ${BINARY_FOLDER}/assets: ${BINARY_FOLDER}
-	@printf "${COL}Copying assets${NC}\n"
+	@printf "${COL}Copying assets${NC}\n"vendor
 	cp -r assets/ ${BINARY_FOLDER}/
 vendor:
 	@printf "${COL}Installing dependencies${NC}\n"
-	dep ensure
-	make fix-vulkan
+	go mod download
+	# make fix-vulkan
 kar: vendor ${BINARY_FOLDER}
 	@printf "${COL}Compiling kar${NC}\n"
 	cd ./cmd/kar && \
@@ -71,4 +71,4 @@ benchmark-kar:
 	@printf "${COL}Benchmarking kar package${NC}\n"
 	cd ./utility/kar && go test -bench .
 clean:
-	rm -rf vendor ${BINARY_FOLDER}
+	rm -rf ${BINARY_FOLDER}
