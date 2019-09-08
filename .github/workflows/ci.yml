@@ -20,8 +20,10 @@ jobs:
 
     - name: Install packages
       run: |
+        brew install pkg-config
         brew install vulkan-headers
         brew install sdl2
+        go get -u github.com/gobuffalo/packr/packr
 
     - name: Build
       run: make all
@@ -47,6 +49,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y libvulkan-dev libsdl2-dev build-essential make libgtk-3-dev libgtk2.0-dev
+        go get -u github.com/gobuffalo/packr/packr
 
     - name: Build
       run: make all
