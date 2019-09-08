@@ -17,25 +17,24 @@ ${BINARY_FOLDER}:
 	@printf "${COL}Create binary folder${NC}\n"
 	mkdir -p ${BINARY_FOLDER}
 ${BINARY_FOLDER}/assets: ${BINARY_FOLDER}
-	@printf "${COL}Copying assets${NC}\n"vendor
+	@printf "${COL}Copying assets${NC}\n"
 	cp -r assets/ ${BINARY_FOLDER}/
-vendor:
+dependencies:
 	@printf "${COL}Installing dependencies${NC}\n"
 	go mod download
-	# make fix-vulkan
-kar: vendor ${BINARY_FOLDER}
+kar: dependencies ${BINARY_FOLDER}
 	@printf "${COL}Compiling kar${NC}\n"
 	cd ./cmd/kar && \
 	go build -o ../../${BINARY_FOLDER}/kar ${FLAGS}
-koru: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
+koru: dependencies ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@printf "${COL}Compiling koru${NC}\n"
 	cd ./cmd/koru && \
 	go build -tags=vulkan -o ../../${BINARY_FOLDER}/koru ${FLAGS}
-korucli: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
+korucli: dependencies ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@printf "${COL}Compiling korucli${NC}\n"
 	cd ./cmd/korucli && \
 	go build -o ../../${BINARY_FOLDER}/korucli ${FLAGS}
-korued: vendor ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
+korued: dependencies ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@printf "${COL}Compiling korued${NC}\n"
 	cd ./cmd/korued && \
 	packr && \
@@ -46,14 +45,8 @@ ${BINARY_FOLDER}/shaders: ${BINARY_FOLDER}
 
 Linux:
 	@printf "${COL}Linux specific prepare${NC}\n"
-Darwin: vendor
+Darwin: dependencies
 	@printf "${COL}Darwin specific prepare${NC}\n"
-	
-fix-vulkan:
-	@printf "${COL}Regenerate bindings${NC}\n"
-	cd vendor/github.com/vulkan-go/vulkan && \
-	make clean && \
-	c-for-go -ccdefs -ccincl -out .. vulkan.yml
 
 test-all: test-unit benchmark
 test-unit:

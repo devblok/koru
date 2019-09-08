@@ -9,7 +9,7 @@ import (
 	"unsafe"
 
 	glm "github.com/go-gl/mathgl/mgl32"
-	vk "github.com/vulkan-go/vulkan"
+	vk "github.com/devblok/vulkan"
 )
 
 // Destroyable defines a structure which needs to be dismantled

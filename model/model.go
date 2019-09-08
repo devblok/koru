@@ -10,7 +10,7 @@ import (
 	"unsafe"
 
 	glm "github.com/go-gl/mathgl/mgl32"
-	vk "github.com/vulkan-go/vulkan"
+	vk "github.com/devblok/vulkan"
 )
 
 // Object represents the engine supported model

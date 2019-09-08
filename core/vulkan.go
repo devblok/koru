@@ -20,7 +20,7 @@ import (
 
 	"github.com/devblok/koru/model"
 	glm "github.com/go-gl/mathgl/mgl32"
-	vk "github.com/vulkan-go/vulkan"
+	vk "github.com/devblok/vulkan"
 )
 
 // DefaultVulkanApplicationInfo application info describes a Vulkan application
