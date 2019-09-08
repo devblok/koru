@@ -1154,6 +1154,11 @@ func (v *VulkanRenderer) Draw() error {
 		return err
 	}
 
+	return nil
+}
+
+// Present implements interface
+func (v *VulkanRenderer) Present() error {
 	presentInfo := vk.PresentInfo{
 		SType:              vk.StructureTypePresentInfo,
 		WaitSemaphoreCount: 1,
@@ -1175,11 +1180,6 @@ func (v *VulkanRenderer) Draw() error {
 		return errors.New("vk.QueuePresent(): " + err.Error())
 	}
 
-	return nil
-}
-
-// Present implements interface
-func (v *VulkanRenderer) Present() error {
 	return nil
 }
 

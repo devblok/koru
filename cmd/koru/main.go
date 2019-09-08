@@ -48,7 +48,7 @@ var (
 
 var configuration = core.Configuration{
 	Time: core.TimeConfiguration{
-		FramesPerSecond: 60,
+		FramesPerSecond: 200,
 		EventPollDelay:  50,
 	},
 	Renderer: core.RendererConfiguration{
@@ -181,12 +181,12 @@ func main() {
 	/* Renderer loop */
 	programSync.Add(1)
 	go func(ctx context.Context, wg *sync.WaitGroup) {
-	FrameLoop:
+	DrawLoop:
 		for {
 			select {
 			case <-ctx.Done():
 				log.Println("Event loop exited")
-				break FrameLoop
+				break DrawLoop
 			case <-timeService.FpsTicker().C:
 				if _, ok := <-vkRenderer.ResourceUpdate(srh, core.ResourceInstance{
 					ResourceID: "assets/suzanne.dae",
@@ -205,6 +205,9 @@ func main() {
 				constant += 0.005
 				if err := vkRenderer.Draw(); err != nil {
 					log.Println("Draw error: " + err.Error())
+				}
+				if err := vkRenderer.Present(); err != nil {
+					log.Println("Present error: " + err.Error())
 				}
 				atomic.AddInt64(&frameCounter, 1)
 			}
