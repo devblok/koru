@@ -24,6 +24,8 @@ jobs:
         brew install vulkan-headers
         brew install molten-vk
         brew install sdl2
+        brew install gtk+
+        brew install gtk+3
         go get -u github.com/gobuffalo/packr/packr
 
     - name: Build
