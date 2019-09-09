@@ -22,6 +22,7 @@ jobs:
       run: |
         brew install pkg-config
         brew install vulkan-headers
+        brew install molten-vk
         brew install sdl2
         go get -u github.com/gobuffalo/packr/packr
 
