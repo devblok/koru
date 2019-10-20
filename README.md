@@ -11,11 +11,9 @@ with a bunch of different things both in Go and technology in general.
 - [x] Vulkan
 - [x] [Packr](https://github.com/gobuffalo/packr)
 - [x] gotk3 GUI that's loaded from glade resources
-- [x] One binary - whole engine (except maybe plugins)
-- [ ] Support major platforms
 - [ ] Try running the thing on Android
 - [ ] Memory mapped resource packs
-- [ ] Fully Lua scriptable
+- [ ] [Tengo](https://github.com/d5/tengo) scripting engine
 - [ ] A Plugin system
 - [ ] Ability to run scripts on all cores
 - [ ] Ability to run Vulkan rendering on all cores
