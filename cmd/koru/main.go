@@ -171,7 +171,7 @@ func main() {
 			default:
 				currentCount := atomic.LoadInt64(&frameCounter)
 				atomic.StoreInt64(&frameCounter, 0)
-				fmt.Printf("Frame count: %d\n", currentCount)
+				fmt.Printf("Frame count: %d\tCGO calls: %d\n", currentCount, runtime.NumCgoCall())
 				time.Sleep(1 * time.Second)
 			}
 		}
