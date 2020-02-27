@@ -3,7 +3,7 @@ module github.com/devblok/koru
 go 1.12
 
 require (
-	github.com/devblok/vulkan v0.0.0-20191020093729-91127ac39acd
+	github.com/devblok/vulkan v0.0.0-20200205143001-bcd4471c4699
 	github.com/frankban/quicktest v1.4.2 // indirect
 	github.com/go-gl/mathgl v0.0.0-20190713194549-592312d8590a
 	github.com/gobuffalo/packr v0.0.0-20190628153553-9eb7a3d310e8

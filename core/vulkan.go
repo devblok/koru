@@ -19,8 +19,8 @@ import (
 	"unsafe"
 
 	"github.com/devblok/koru/model"
-	glm "github.com/go-gl/mathgl/mgl32"
 	vk "github.com/devblok/vulkan"
+	glm "github.com/go-gl/mathgl/mgl32"
 )
 
 // DefaultVulkanApplicationInfo application info describes a Vulkan application

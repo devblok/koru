@@ -48,7 +48,7 @@ var (
 
 var configuration = core.Configuration{
 	Time: core.TimeConfiguration{
-		FramesPerSecond: 200,
+		FramesPerSecond: 2000,
 		EventPollDelay:  50,
 	},
 	Renderer: core.RendererConfiguration{
@@ -171,8 +171,9 @@ func main() {
 			default:
 				currentCount := atomic.LoadInt64(&frameCounter)
 				atomic.StoreInt64(&frameCounter, 0)
-				fmt.Printf("Frame count: %d\tCGO calls: %d\n", currentCount, runtime.NumCgoCall())
-				time.Sleep(1 * time.Second)
+				fmt.Printf("\r\033[2KFrame count: %d\tCGO calls: %d", currentCount*5, runtime.NumCgoCall())
+				time.Sleep(200 * time.Millisecond)
+				// 200 ms * 5 = 1s, therefore we need to mutiply the count
 			}
 		}
 		wg.Done()
