@@ -24,19 +24,19 @@ dependencies:
 	go mod download
 kar: dependencies ${BINARY_FOLDER}
 	@printf "${COL}Compiling kar${NC}\n"
-	cd ./cmd/kar && \
+	cd ./src/cmd/kar && \
 	go build -o ../../${BINARY_FOLDER}/kar ${FLAGS}
 koru: dependencies ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@printf "${COL}Compiling koru${NC}\n"
-	cd ./cmd/koru && \
+	cd ./src/cmd/koru && \
 	go build -tags=vulkan -o ../../${BINARY_FOLDER}/koru ${FLAGS}
 korucli: dependencies ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@printf "${COL}Compiling korucli${NC}\n"
-	cd ./cmd/korucli && \
+	cd ./src/cmd/korucli && \
 	go build -o ../../${BINARY_FOLDER}/korucli ${FLAGS}
 korued: dependencies ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@printf "${COL}Compiling korued${NC}\n"
-	cd ./cmd/korued && \
+	cd ./src/cmd/korued && \
 	packr && \
 	go build -o ../../${BINARY_FOLDER}/korued ${FLAGS}
 ${BINARY_FOLDER}/shaders: ${BINARY_FOLDER}
@@ -56,12 +56,12 @@ test-unit:
 benchmark: benchmark-core benchmark-model benchmark-kar
 benchmark-core:
 	@printf "${COL}Benchmarking core package${NC}\n"
-	cd ./core && go test -bench .
+	cd ./src/core && go test -bench .
 benchmark-model:
 	@printf "${COL}Benchmarking model package${NC}\n"
-	cd ./model && go test -bench .
+	cd ./src/model && go test -bench .
 benchmark-kar:
 	@printf "${COL}Benchmarking kar package${NC}\n"
-	cd ./utility/kar && go test -bench .
+	cd ./src/utility/kar && go test -bench .
 clean:
 	rm -rf ${BINARY_FOLDER}

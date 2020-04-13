@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/devblok/koru/core"
+	"github.com/devblok/koru/src/core"
 )
 
 func main() {

@@ -8,8 +8,8 @@ package core
 import (
 	"unsafe"
 
-	glm "github.com/go-gl/mathgl/mgl32"
 	vk "github.com/devblok/vulkan"
+	glm "github.com/go-gl/mathgl/mgl32"
 )
 
 // Destroyable defines a structure which needs to be dismantled

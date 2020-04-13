@@ -4,5 +4,5 @@ BINARY_FOLDER=$1
 
 for shader in $(ls shaders)
 do
-    glslangValidator -s -V shaders/$shader -o $BINARY_FOLDER/$shader.spv -e main --source-entrypoint main
+    glslangValidator -s -V src/shaders/$shader -o $BINARY_FOLDER/$shader.spv -e main --source-entrypoint main
 done

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/devblok/koru/utility/kar"
+	"github.com/devblok/koru/src/utility/kar"
 	"golang.org/x/exp/mmap"
 )
 

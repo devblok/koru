@@ -11,7 +11,7 @@ import (
 	"image/png"
 	"testing"
 
-	"github.com/devblok/koru/core"
+	"github.com/devblok/src/koru/core"
 	"github.com/gobuffalo/packr"
 )
 

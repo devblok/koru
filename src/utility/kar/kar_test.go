@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/devblok/koru/utility/kar"
+	"github.com/devblok/koru/src/utility/kar"
 )
 
 var (

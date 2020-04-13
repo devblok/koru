@@ -19,7 +19,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/devblok/koru/core"
+	"github.com/devblok/koru/src/core"
 	glm "github.com/go-gl/mathgl/mgl32"
 	"github.com/veandco/go-sdl2/sdl"
 )

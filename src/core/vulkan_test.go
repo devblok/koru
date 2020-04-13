@@ -8,7 +8,7 @@ package core_test
 import (
 	"testing"
 
-	"github.com/devblok/koru/core"
+	"github.com/devblok/src/koru/core"
 )
 
 func BenchmarkSliceUint32Small(b *testing.B) {

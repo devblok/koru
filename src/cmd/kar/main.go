@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/devblok/koru/utility/kar"
+	"github.com/devblok/koru/src/utility/kar"
 )
 
 func init() {

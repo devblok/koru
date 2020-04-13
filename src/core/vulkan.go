@@ -18,7 +18,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/devblok/koru/model"
+	"github.com/devblok/koru/src/model"
 	vk "github.com/devblok/vulkan"
 	glm "github.com/go-gl/mathgl/mgl32"
 )

@@ -9,7 +9,7 @@ import (
 	"encoding/xml"
 	"testing"
 
-	"github.com/devblok/koru/model"
+	"github.com/devblok/koru/src/model"
 )
 
 var Cube_file string = `
