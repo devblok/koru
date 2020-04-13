@@ -11,7 +11,7 @@ import (
 	"image/png"
 	"testing"
 
-	"github.com/devblok/src/koru/core"
+	"github.com/devblok/koru/src/core"
 	"github.com/gobuffalo/packr"
 )
 
@@ -21,7 +21,7 @@ var (
 )
 
 func init() {
-	StaticResources = packr.NewBox("../assets")
+	StaticResources = packr.NewBox("../../assets")
 	img, err := png.Decode(bytes.NewReader(StaticResources.Bytes("Bricks_COLOR.png")))
 	if err != nil {
 		panic(err)
