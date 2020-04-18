@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/devblok/koru/src/gfx/vkr"
 	"github.com/devblok/koru/src/model"
 	vk "github.com/devblok/vulkan"
 	glm "github.com/go-gl/mathgl/mgl32"
@@ -269,6 +270,9 @@ type VulkanRenderer struct {
 	instanceCounter uint32
 
 	textureSampler vk.Sampler
+
+	// ! new, testing
+	memoryAllocator *vkr.MemoryAllocator
 }
 
 // Initialise implements interface
@@ -363,6 +367,14 @@ func (v *VulkanRenderer) Initialise() error {
 
 	v.deviceQueue = deviceQueue
 	v.logicalDevice = vkDevice
+
+	/* Memory Allocator */
+	var memoryAllocator *vkr.MemoryAllocator
+	memoryAllocator, err := vkr.NewMemoryAllocator(v.logicalDevice, v.physicalDevice)
+	if err != nil {
+		return err
+	}
+	v.memoryAllocator = memoryAllocator
 
 	/* ImageFormat */
 	var (
@@ -597,13 +609,16 @@ func (v *VulkanRenderer) createTextureImage(set *resourceSet, texture image.Imag
 	vk.GetBufferMemoryRequirements(v.logicalDevice, set.textureBuffer, &memoryRequirements)
 	memoryRequirements.Deref()
 
-	var textureMemory vk.DeviceMemory
-	if err := v.allocateMemory(&textureMemory, memoryRequirements.Size, memoryRequirements.MemoryTypeBits, vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit); err != nil {
+	memory, err := v.memoryAllocator.Malloc(
+		memoryRequirements,
+		vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit,
+	)
+	if err != nil {
 		return err
 	}
-	set.textureMemory = textureMemory
+	set.textureMemory = memory
 
-	vk.BindBufferMemory(v.logicalDevice, set.textureBuffer, set.textureMemory, 0)
+	vk.BindBufferMemory(v.logicalDevice, set.textureBuffer, set.textureMemory.Get(), 0)
 
 	ici := vk.ImageCreateInfo{
 		SType:     vk.StructureTypeImageCreateInfo,
@@ -641,37 +656,26 @@ func (v *VulkanRenderer) createTextureImage(set *resourceSet, texture image.Imag
 	}
 
 	var mappedMemory unsafe.Pointer
-	vk.MapMemory(v.logicalDevice, set.textureMemory, 0, vk.DeviceSize(bufSize), 0, &mappedMemory)
+	vk.MapMemory(v.logicalDevice, set.textureMemory.Get(), 0, vk.DeviceSize(bufSize), 0, &mappedMemory)
 	castMappedMemory := *(*[]uint8)(unsafe.Pointer(&sliceHeader{
 		Data: uintptr(mappedMemory),
 		Cap:  bufSize,
 		Len:  bufSize,
 	}))
 	copy(castMappedMemory, pixels[:])
-	vk.UnmapMemory(v.logicalDevice, set.textureMemory)
+	vk.UnmapMemory(v.logicalDevice, set.textureMemory.Get())
 
 	var memRequirements vk.MemoryRequirements
 	vk.GetImageMemoryRequirements(v.logicalDevice, set.textureImage, &memRequirements)
 	memRequirements.Deref()
 
-	memIdx, err := findMemoryType(v.physicalDevice, memRequirements.MemoryTypeBits, vk.MemoryPropertyFlags(vk.MemoryPropertyDeviceLocalBit))
+	memory, err = v.memoryAllocator.Malloc(memRequirements, vk.MemoryPropertyDeviceLocalBit)
 	if err != nil {
 		return err
 	}
+	set.textureImageMemory = memory
 
-	allocInfo := vk.MemoryAllocateInfo{
-		SType:           vk.StructureTypeMemoryAllocateInfo,
-		AllocationSize:  memRequirements.Size,
-		MemoryTypeIndex: memIdx,
-	}
-
-	var textureImageMemory vk.DeviceMemory
-	if err := vk.Error(vk.AllocateMemory(v.logicalDevice, &allocInfo, nil, &textureImageMemory)); err != nil {
-		return fmt.Errorf("vk.AllocateMemory(): %s", err.Error())
-	}
-	set.textureImageMemory = textureImageMemory
-
-	vk.BindImageMemory(v.logicalDevice, set.textureImage, set.textureImageMemory, 0)
+	vk.BindImageMemory(v.logicalDevice, set.textureImage, set.textureImageMemory.Get(), 0)
 
 	if err := v.transitionLayout(set.textureImage, vk.FormatR8g8b8a8Unorm, vk.ImageLayoutUndefined, vk.ImageLayoutTransferDstOptimal); err != nil {
 		return err
@@ -885,16 +889,21 @@ func (v *VulkanRenderer) createVertexBuffers(set *resourceSet, vertices []model.
 	vk.GetBufferMemoryRequirements(v.logicalDevice, set.vertexBuffer, &memoryRequirements)
 	memoryRequirements.Deref()
 
-	if err := v.allocateMemory(&set.vertexMemory, memoryRequirements.Size, memoryRequirements.MemoryTypeBits, vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit); err != nil {
+	memory, err := v.memoryAllocator.Malloc(
+		memoryRequirements,
+		vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit,
+	)
+	if err != nil {
 		return err
 	}
+	set.vertMem = memory
 
-	if err := vk.Error(vk.BindBufferMemory(v.logicalDevice, set.vertexBuffer, set.vertexMemory, 0)); err != nil {
+	if err := vk.Error(vk.BindBufferMemory(v.logicalDevice, set.vertexBuffer, set.vertMem.Get(), 0)); err != nil {
 		return fmt.Errorf("vk.BindBufferMemory(): %s", err.Error())
 	}
 
 	var vertexMappedMemory unsafe.Pointer
-	vk.MapMemory(v.logicalDevice, set.vertexMemory, 0, memoryRequirements.Size, 0, &vertexMappedMemory)
+	vk.MapMemory(v.logicalDevice, set.vertMem.Get(), 0, memoryRequirements.Size, 0, &vertexMappedMemory)
 
 	vertexCastMemory := *(*[]model.Vertex)(unsafe.Pointer(&sliceHeader{
 		Data: uintptr(vertexMappedMemory),
@@ -902,7 +911,7 @@ func (v *VulkanRenderer) createVertexBuffers(set *resourceSet, vertices []model.
 		Len:  len(vertices),
 	}))
 	copy(vertexCastMemory, vertices[:])
-	vk.UnmapMemory(v.logicalDevice, set.vertexMemory)
+	vk.UnmapMemory(v.logicalDevice, set.vertMem.Get())
 
 	return nil
 }
@@ -1980,16 +1989,16 @@ type resourceSet struct {
 
 	numVertices          uint32
 	vertexBuffer         vk.Buffer
-	vertexMemory         vk.DeviceMemory
+	vertMem              *vkr.Memory
 	uniformBuffers       []vk.Buffer
 	uniformBuffersMemory []vk.DeviceMemory
 
 	descriptorSets []vk.DescriptorSet
 
 	textureBuffer      vk.Buffer
-	textureMemory      vk.DeviceMemory
+	textureMemory      *vkr.Memory
 	textureImage       vk.Image
-	textureImageMemory vk.DeviceMemory
+	textureImageMemory *vkr.Memory
 	textureImageView   vk.ImageView
 }
 
@@ -2004,11 +2013,11 @@ func (rs *resourceSet) Destroy() {
 	}
 
 	vk.DestroyBuffer(rs.device, rs.vertexBuffer, nil)
-	vk.FreeMemory(rs.device, rs.vertexMemory, nil)
+	rs.vertMem.Release()
 
-	vk.FreeMemory(rs.device, rs.textureMemory, nil)
+	rs.textureMemory.Release()
 	vk.DestroyBuffer(rs.device, rs.textureBuffer, nil)
-	vk.FreeMemory(rs.device, rs.textureImageMemory, nil)
+	rs.textureImageMemory.Release()
 	vk.DestroyImageView(rs.device, rs.textureImageView, nil)
 	vk.DestroyImage(rs.device, rs.textureImage, nil)
 }

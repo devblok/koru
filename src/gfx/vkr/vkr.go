@@ -27,6 +27,11 @@ func (Image) Sub() []gfx.Resource {
 	return nil
 }
 
+// Release release resources related to the Image.
+func (i *Image) Release() {
+
+}
+
 // Mesh implements a vertex collection and related things
 // for the vulkan renderer.
 type Mesh struct {
