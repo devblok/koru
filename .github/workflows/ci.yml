@@ -9,7 +9,7 @@ jobs:
         go: [1.14.2]
     
     steps:
-    - name: Set up Go 1.12
+    - name: Set up Go 1.14.2
       uses: actions/setup-go@v1
       with:
         go-version: ${{ matrix.go }}
@@ -41,7 +41,7 @@ jobs:
         go: [1.14.2]
     
     steps:
-    - name: Set up Go 1.12
+    - name: Set up Go 1.14.2
       uses: actions/setup-go@v1
       with:
         go-version: ${{ matrix.go }}
