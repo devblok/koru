@@ -6,7 +6,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        go: [1.13]
+        go: [1.14.2]
     
     steps:
     - name: Set up Go 1.12
@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [1.13]
+        go: [1.14.2]
     
     steps:
     - name: Set up Go 1.12
