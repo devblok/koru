@@ -38,9 +38,7 @@ func NewMemoryAllocator(device vk.Device, phyDevice vk.PhysicalDevice) (*MemoryA
 // MemoryAllocator is responsible returning usable
 // memory for any resources that may need it.
 type MemoryAllocator struct {
-	device vk.Device
-
-	// ! Do not forget to dereference before use
+	device        vk.Device
 	memProperties vk.PhysicalDeviceMemoryProperties
 }
 
