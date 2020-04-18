@@ -840,7 +840,7 @@ func (v *VulkanRenderer) createUniformBuffers(set *resourceSet) error {
 	bufferSize := int(unsafe.Sizeof(model.Uniform{}))
 	uniformBuffers := make([]vk.Buffer, len(v.swapchainImages))
 
-	var uniformBuffersMemory []*vkr.Memory
+	var uniformBuffersMemory []vkr.Memory
 	for idx := 0; idx < len(v.swapchainImages); idx++ {
 		if err := v.createBuffer(&uniformBuffers[idx], bufferSize, vk.BufferUsageUniformBufferBit, vk.SharingModeExclusive); err != nil {
 			return err
@@ -1962,16 +1962,16 @@ type resourceSet struct {
 
 	numVertices          uint32
 	vertexBuffer         vk.Buffer
-	vertexMemory         *vkr.Memory
+	vertexMemory         vkr.Memory
 	uniformBuffers       []vk.Buffer
-	uniformBuffersMemory []*vkr.Memory
+	uniformBuffersMemory []vkr.Memory
 
 	descriptorSets []vk.DescriptorSet
 
 	textureBuffer      vk.Buffer
-	textureMemory      *vkr.Memory
+	textureMemory      vkr.Memory
 	textureImage       vk.Image
-	textureImageMemory *vkr.Memory
+	textureImageMemory vkr.Memory
 	textureImageView   vk.ImageView
 }
 

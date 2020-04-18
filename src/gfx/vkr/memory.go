@@ -45,10 +45,10 @@ type MemoryAllocator struct {
 }
 
 // Malloc returns a usable memory chunk ready for use.
-func (ma *MemoryAllocator) Malloc(req vk.MemoryRequirements, prop vk.MemoryPropertyFlagBits) (*Memory, error) {
+func (ma *MemoryAllocator) Malloc(req vk.MemoryRequirements, prop vk.MemoryPropertyFlagBits) (Memory, error) {
 	memTypeIdx, err := ma.findMemoryType(req.MemoryTypeBits, vk.MemoryPropertyFlags(prop))
 	if err != nil {
-		return nil, err
+		return Memory{}, err
 	}
 
 	mai := vk.MemoryAllocateInfo{
@@ -59,9 +59,9 @@ func (ma *MemoryAllocator) Malloc(req vk.MemoryRequirements, prop vk.MemoryPrope
 
 	var memory vk.DeviceMemory
 	if err := vk.Error(vk.AllocateMemory(ma.device, &mai, nil, &memory)); err != nil {
-		return nil, fmt.Errorf("vk.AllocateMemory(): %s", err.Error())
+		return Memory{}, fmt.Errorf("vk.AllocateMemory(): %s", err.Error())
 	}
-	return &Memory{
+	return Memory{
 		device: ma.device,
 		memory: memory,
 	}, nil
