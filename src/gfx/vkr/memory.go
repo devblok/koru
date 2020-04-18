@@ -23,7 +23,8 @@ func (m *Memory) Release() {
 	vk.FreeMemory(m.device, m.memory, nil)
 }
 
-// NewMemoryAllocator creates a new memory allocator for a physical and a logical device.
+// NewMemoryAllocator creates a new memory allocator. Allocates for the logical device,
+// reads memory properties of the physical device to influence allocation.
 func NewMemoryAllocator(device vk.Device, phyDevice vk.PhysicalDevice) (*MemoryAllocator, error) {
 	var memProperties vk.PhysicalDeviceMemoryProperties
 	vk.GetPhysicalDeviceMemoryProperties(phyDevice, &memProperties)

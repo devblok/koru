@@ -272,7 +272,7 @@ type VulkanRenderer struct {
 	textureSampler vk.Sampler
 
 	// ! new, testing
-	memoryAllocator *vkr.MemoryAllocator
+	allocator *vkr.MemoryAllocator
 }
 
 // Initialise implements interface
@@ -374,7 +374,7 @@ func (v *VulkanRenderer) Initialise() error {
 	if err != nil {
 		return err
 	}
-	v.memoryAllocator = memoryAllocator
+	v.allocator = memoryAllocator
 
 	/* ImageFormat */
 	var (
@@ -591,7 +591,7 @@ func (v *VulkanRenderer) createTextureImage(set *resourceSet, texture image.Imag
 	vk.GetBufferMemoryRequirements(v.logicalDevice, set.textureBuffer, &memoryRequirements)
 	memoryRequirements.Deref()
 
-	memory, err := v.memoryAllocator.Malloc(
+	memory, err := v.allocator.Malloc(
 		memoryRequirements,
 		vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit,
 	)
@@ -651,7 +651,7 @@ func (v *VulkanRenderer) createTextureImage(set *resourceSet, texture image.Imag
 	vk.GetImageMemoryRequirements(v.logicalDevice, set.textureImage, &memRequirements)
 	memRequirements.Deref()
 
-	memory, err = v.memoryAllocator.Malloc(memRequirements, vk.MemoryPropertyDeviceLocalBit)
+	memory, err = v.allocator.Malloc(memRequirements, vk.MemoryPropertyDeviceLocalBit)
 	if err != nil {
 		return err
 	}
@@ -850,7 +850,7 @@ func (v *VulkanRenderer) createUniformBuffers(set *resourceSet) error {
 		vk.GetBufferMemoryRequirements(v.logicalDevice, uniformBuffers[idx], &memoryRequirements)
 		memoryRequirements.Deref()
 
-		memory, err := v.memoryAllocator.Malloc(
+		memory, err := v.allocator.Malloc(
 			memoryRequirements,
 			vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit,
 		)
@@ -876,7 +876,7 @@ func (v *VulkanRenderer) createVertexBuffers(set *resourceSet, vertices []model.
 	vk.GetBufferMemoryRequirements(v.logicalDevice, set.vertexBuffer, &memoryRequirements)
 	memoryRequirements.Deref()
 
-	memory, err := v.memoryAllocator.Malloc(
+	memory, err := v.allocator.Malloc(
 		memoryRequirements,
 		vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit,
 	)
