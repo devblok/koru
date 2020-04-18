@@ -18,7 +18,7 @@ type Resource interface {
 
 	// Ready returns a channel that will be closed when the
 	// resource is ready for use.
-	Ready() chan<- chan struct{}
+	Ready() <-chan struct{}
 
 	// Sub returns subresources of this resource.
 	Sub() []Resource
