@@ -9,8 +9,8 @@ import (
 	"image"
 	"unsafe"
 
-	glm "github.com/go-gl/mathgl/mgl32"
 	vk "github.com/devblok/vulkan"
+	glm "github.com/go-gl/mathgl/mgl32"
 )
 
 // Object represents the engine supported model
@@ -39,10 +39,6 @@ type Object interface {
 	// Texture returns the raw data of a color texture image
 	// for use in the Renderer
 	Texture() image.Image
-
-	// NormalMap returns the raw data of a normal map
-	// for use in the Renderer
-	NormalMap() []byte
 }
 
 // Vertex is a model vertex

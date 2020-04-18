@@ -25,20 +25,20 @@ dependencies:
 kar: dependencies ${BINARY_FOLDER}
 	@printf "${COL}Compiling kar${NC}\n"
 	cd ./src/cmd/kar && \
-	go build -o ../../${BINARY_FOLDER}/kar ${FLAGS}
+	go build -o ../../../${BINARY_FOLDER}/kar ${FLAGS}
 koru: dependencies ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@printf "${COL}Compiling koru${NC}\n"
 	cd ./src/cmd/koru && \
-	go build -tags=vulkan -o ../../${BINARY_FOLDER}/koru ${FLAGS}
+	go build -tags=vulkan -o ../../../${BINARY_FOLDER}/koru ${FLAGS}
 korucli: dependencies ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@printf "${COL}Compiling korucli${NC}\n"
 	cd ./src/cmd/korucli && \
-	go build -o ../../${BINARY_FOLDER}/korucli ${FLAGS}
+	go build -o ../../../${BINARY_FOLDER}/korucli ${FLAGS}
 korued: dependencies ${BINARY_FOLDER} ${BINARY_FOLDER}/assets ${BINARY_FOLDER}/shaders
 	@printf "${COL}Compiling korued${NC}\n"
 	cd ./src/cmd/korued && \
 	packr && \
-	go build -o ../../${BINARY_FOLDER}/korued ${FLAGS}
+	go build -o ../../../${BINARY_FOLDER}/korued ${FLAGS}
 ${BINARY_FOLDER}/shaders: ${BINARY_FOLDER}
 	mkdir -p ${BINARY_FOLDER}/shaders
 	./buildShaders.sh ${BINARY_FOLDER}/shaders

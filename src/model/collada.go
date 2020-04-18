@@ -120,11 +120,6 @@ func (co *ColladaObject) Texture() image.Image {
 	return co.texture
 }
 
-// NormalMap implements interface
-func (co *ColladaObject) NormalMap() []byte {
-	return []byte{}
-}
-
 func findSource(sources []Source, id string) (Source, error) {
 	for _, s := range sources {
 		if strings.Compare(s.ID, id[1:]) == 0 {

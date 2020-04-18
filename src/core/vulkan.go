@@ -26,7 +26,7 @@ import (
 // DefaultVulkanApplicationInfo application info describes a Vulkan application
 var DefaultVulkanApplicationInfo = &vk.ApplicationInfo{
 	SType:              vk.StructureTypeApplicationInfo,
-	ApiVersion:         vk.MakeVersion(1, 0, 0),
+	ApiVersion:         vk.MakeVersion(1, 2, 131),
 	ApplicationVersion: vk.MakeVersion(1, 0, 0),
 	PApplicationName:   safeString("Koru3D"),
 	PEngineName:        safeString("Koru3D"),
@@ -1614,7 +1614,7 @@ func (v *VulkanRenderer) createSwapchain(oldSwapchain vk.Swapchain) error {
 		ImageUsage:       vk.ImageUsageFlags(vk.ImageUsageColorAttachmentBit),
 		PreTransform:     vk.SurfaceTransformIdentityBit,
 		CompositeAlpha:   compositeAlpha,
-		PresentMode:      vk.PresentModeFifo,
+		PresentMode:      vk.PresentModeFifoRelaxed,
 		Clipped:          vk.True,
 		ImageArrayLayers: 1,
 		ImageSharingMode: vk.SharingModeExclusive,
@@ -1640,13 +1640,13 @@ func (v *VulkanRenderer) createSwapchain(oldSwapchain vk.Swapchain) error {
 
 func (v *VulkanRenderer) createPipelineLayout() error {
 	bindings := []vk.DescriptorSetLayoutBinding{
-		vk.DescriptorSetLayoutBinding{
+		{
 			DescriptorCount: 1,
 			DescriptorType:  vk.DescriptorTypeUniformBuffer,
 			StageFlags:      vk.ShaderStageFlags(vk.ShaderStageVertexBit),
 			Binding:         0,
 		},
-		vk.DescriptorSetLayoutBinding{
+		{
 			DescriptorCount: 1,
 			DescriptorType:  vk.DescriptorTypeCombinedImageSampler,
 			StageFlags:      vk.ShaderStageFlags(vk.ShaderStageFragmentBit),
@@ -1670,7 +1670,7 @@ func (v *VulkanRenderer) createPipelineLayout() error {
 	v.descriptorSetLayouts = descriptorSetLayouts
 
 	pcr := []vk.PushConstantRange{
-		vk.PushConstantRange{
+		{
 			Offset:     0,
 			Size:       uint32(unsafe.Sizeof(pushConstant{})),
 			StageFlags: vk.ShaderStageFlags(vk.ShaderStageVertexBit),
@@ -1695,7 +1695,7 @@ func (v *VulkanRenderer) createPipelineLayout() error {
 
 func (v *VulkanRenderer) createRenderPass() error {
 	swapchainAttachments := []vk.AttachmentDescription{
-		vk.AttachmentDescription{
+		{
 			Format:         v.imageFormat,
 			Samples:        vk.SampleCount1Bit,
 			LoadOp:         vk.AttachmentLoadOpClear,
@@ -1705,7 +1705,7 @@ func (v *VulkanRenderer) createRenderPass() error {
 			InitialLayout:  vk.ImageLayoutUndefined,
 			FinalLayout:    vk.ImageLayoutPresentSrc,
 		},
-		vk.AttachmentDescription{
+		{
 			Format:         vk.FormatD16Unorm,
 			Samples:        vk.SampleCount1Bit,
 			LoadOp:         vk.AttachmentLoadOpClear,
