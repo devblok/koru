@@ -577,24 +577,6 @@ func (v *VulkanRenderer) createBuffer(buffer *vk.Buffer, size int, usage vk.Buff
 	return nil
 }
 
-func (v *VulkanRenderer) allocateMemory(memory *vk.DeviceMemory, size vk.DeviceSize, memoryType uint32, properties vk.MemoryPropertyFlagBits) error {
-	memTypeIdx, err := findMemoryType(v.physicalDevice, memoryType, vk.MemoryPropertyFlags(properties))
-	if err != nil {
-		return err
-	}
-
-	mai := vk.MemoryAllocateInfo{
-		SType:           vk.StructureTypeMemoryAllocateInfo,
-		AllocationSize:  size,
-		MemoryTypeIndex: memTypeIdx,
-	}
-
-	if err := vk.Error(vk.AllocateMemory(v.logicalDevice, &mai, nil, memory)); err != nil {
-		return fmt.Errorf("vk.AllocateMemory(): %s", err.Error())
-	}
-	return nil
-}
-
 func (v *VulkanRenderer) createTextureImage(set *resourceSet, texture image.Image) error {
 	bounds := texture.Bounds()
 	bufSize := bounds.Max.X * bounds.Max.Y * 4
@@ -857,8 +839,8 @@ func (v *VulkanRenderer) copyBufferToImage(buf vk.Buffer, img vk.Image, width, h
 func (v *VulkanRenderer) createUniformBuffers(set *resourceSet) error {
 	bufferSize := int(unsafe.Sizeof(model.Uniform{}))
 	uniformBuffers := make([]vk.Buffer, len(v.swapchainImages))
-	uniformBuffersMemory := make([]vk.DeviceMemory, len(v.swapchainImages))
 
+	var uniformBuffersMemory []*vkr.Memory
 	for idx := 0; idx < len(v.swapchainImages); idx++ {
 		if err := v.createBuffer(&uniformBuffers[idx], bufferSize, vk.BufferUsageUniformBufferBit, vk.SharingModeExclusive); err != nil {
 			return err
@@ -868,11 +850,16 @@ func (v *VulkanRenderer) createUniformBuffers(set *resourceSet) error {
 		vk.GetBufferMemoryRequirements(v.logicalDevice, uniformBuffers[idx], &memoryRequirements)
 		memoryRequirements.Deref()
 
-		if err := v.allocateMemory(&uniformBuffersMemory[idx], memoryRequirements.Size, memoryRequirements.MemoryTypeBits, vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit); err != nil {
+		memory, err := v.memoryAllocator.Malloc(
+			memoryRequirements,
+			vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit,
+		)
+		if err != nil {
 			return err
 		}
 
-		vk.BindBufferMemory(v.logicalDevice, uniformBuffers[idx], uniformBuffersMemory[idx], 0)
+		vk.BindBufferMemory(v.logicalDevice, uniformBuffers[idx], memory.Get(), 0)
+		uniformBuffersMemory = append(uniformBuffersMemory, memory)
 	}
 
 	set.uniformBuffers = uniformBuffers
@@ -896,14 +883,14 @@ func (v *VulkanRenderer) createVertexBuffers(set *resourceSet, vertices []model.
 	if err != nil {
 		return err
 	}
-	set.vertMem = memory
+	set.vertexMemory = memory
 
-	if err := vk.Error(vk.BindBufferMemory(v.logicalDevice, set.vertexBuffer, set.vertMem.Get(), 0)); err != nil {
+	if err := vk.Error(vk.BindBufferMemory(v.logicalDevice, set.vertexBuffer, set.vertexMemory.Get(), 0)); err != nil {
 		return fmt.Errorf("vk.BindBufferMemory(): %s", err.Error())
 	}
 
 	var vertexMappedMemory unsafe.Pointer
-	vk.MapMemory(v.logicalDevice, set.vertMem.Get(), 0, memoryRequirements.Size, 0, &vertexMappedMemory)
+	vk.MapMemory(v.logicalDevice, set.vertexMemory.Get(), 0, memoryRequirements.Size, 0, &vertexMappedMemory)
 
 	vertexCastMemory := *(*[]model.Vertex)(unsafe.Pointer(&sliceHeader{
 		Data: uintptr(vertexMappedMemory),
@@ -911,23 +898,9 @@ func (v *VulkanRenderer) createVertexBuffers(set *resourceSet, vertices []model.
 		Len:  len(vertices),
 	}))
 	copy(vertexCastMemory, vertices[:])
-	vk.UnmapMemory(v.logicalDevice, set.vertMem.Get())
+	vk.UnmapMemory(v.logicalDevice, set.vertexMemory.Get())
 
 	return nil
-}
-
-func findMemoryType(device vk.PhysicalDevice, filter uint32, properties vk.MemoryPropertyFlags) (uint32, error) {
-	memoryProperties := vk.PhysicalDeviceMemoryProperties{}
-	vk.GetPhysicalDeviceMemoryProperties(device, &memoryProperties)
-	memoryProperties.Deref()
-
-	for idx := uint32(0); idx < memoryProperties.MemoryTypeCount; idx++ {
-		memoryProperties.MemoryTypes[idx].Deref()
-		if filter&(1<<idx) != 0 && (memoryProperties.MemoryTypes[idx].PropertyFlags&properties) == properties {
-			return idx, nil
-		}
-	}
-	return 0, errors.New("memory type not found for vertex buffer")
 }
 
 func (v *VulkanRenderer) destroyBeforeRecreatePipeline() {
@@ -1113,14 +1086,14 @@ func (v *VulkanRenderer) updateUniformBuffers(imageIdx uint32, set *resourceSet)
 	ubo.Projection[5] *= -1 // Flip from OpenGl to Vulkan projection
 
 	var mappedMemory unsafe.Pointer
-	vk.MapMemory(v.logicalDevice, set.uniformBuffersMemory[imageIdx], 0, vk.DeviceSize(unsafe.Sizeof(ubo)), 0, &mappedMemory)
+	vk.MapMemory(v.logicalDevice, set.uniformBuffersMemory[imageIdx].Get(), 0, vk.DeviceSize(unsafe.Sizeof(ubo)), 0, &mappedMemory)
 	castMemory := *(*[]model.Uniform)(unsafe.Pointer(&sliceHeader{
 		Data: uintptr(mappedMemory),
 		Cap:  1,
 		Len:  1,
 	}))
 	copy(castMemory, []model.Uniform{ubo})
-	vk.UnmapMemory(v.logicalDevice, set.uniformBuffersMemory[imageIdx])
+	vk.UnmapMemory(v.logicalDevice, set.uniformBuffersMemory[imageIdx].Get())
 }
 
 // Draw implements interface
@@ -1989,9 +1962,9 @@ type resourceSet struct {
 
 	numVertices          uint32
 	vertexBuffer         vk.Buffer
-	vertMem              *vkr.Memory
+	vertexMemory         *vkr.Memory
 	uniformBuffers       []vk.Buffer
-	uniformBuffersMemory []vk.DeviceMemory
+	uniformBuffersMemory []*vkr.Memory
 
 	descriptorSets []vk.DescriptorSet
 
@@ -2005,7 +1978,7 @@ type resourceSet struct {
 func (rs *resourceSet) Destroy() {
 	rs.destroyed = true
 	for _, mem := range rs.uniformBuffersMemory {
-		vk.FreeMemory(rs.device, mem, nil)
+		mem.Release()
 	}
 
 	for _, buf := range rs.uniformBuffers {
@@ -2013,7 +1986,7 @@ func (rs *resourceSet) Destroy() {
 	}
 
 	vk.DestroyBuffer(rs.device, rs.vertexBuffer, nil)
-	rs.vertMem.Release()
+	rs.vertexMemory.Release()
 
 	rs.textureMemory.Release()
 	vk.DestroyBuffer(rs.device, rs.textureBuffer, nil)
