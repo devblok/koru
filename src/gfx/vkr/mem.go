@@ -48,7 +48,7 @@ func (m *Memory) Unmap() {
 	}
 }
 
-// Release frees memory.
+// Release frees memory after unmapping it if previously mapped.
 func (m *Memory) Release() {
 	m.Unmap()
 	vk.FreeMemory(m.device, m.memory, nil)

@@ -2,70 +2,58 @@
 package vkr
 
 import (
-	"github.com/devblok/koru/src/gfx"
+	"fmt"
 
 	vk "github.com/devblok/vulkan"
 )
 
-// Image implements vulkan image type, use for textures, etc.
-type Image struct {
-	id string
+// NewBuffer creates, configures, allocates and binds a new buffer.
+func NewBuffer(dev vk.Device, size uint, usage vk.BufferUsageFlagBits, mode vk.SharingMode, ma *MemoryAllocator) (Buffer, error) {
+	createInfo := vk.BufferCreateInfo{
+		SType:       vk.StructureTypeBufferCreateInfo,
+		Size:        vk.DeviceSize(size),
+		Usage:       vk.BufferUsageFlags(usage),
+		SharingMode: mode,
+	}
+	var buffer vk.Buffer
+	if err := vk.Error(vk.CreateBuffer(dev, &createInfo, nil, &buffer)); err != nil {
+		return Buffer{}, fmt.Errorf("vk.CreateBuffer(): %s", err.Error())
+	}
 
-	ready chan struct{}
-}
+	var req vk.MemoryRequirements
+	vk.GetBufferMemoryRequirements(dev, buffer, &req)
+	req.Deref()
 
-// ID returns Resource ID.
-func (i *Image) ID() string {
-	return i.id
-}
+	memory, err := ma.Malloc(req, vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit)
+	if err != nil {
+		return Buffer{}, err
+	}
 
-// Ready returns a channel that is closed when the image
-// is in memory and ready for use.
-func (i *Image) Ready() <-chan struct{} {
-	return i.ready
-}
+	vk.BindBufferMemory(dev, buffer, memory.Get(), vk.DeviceSize(memory.Offset()))
 
-// Sub returns all subresources of this texture.
-// Textures cannot have any subresources, so this is always nil.
-func (Image) Sub() []gfx.Resource {
-	return nil
-}
-
-// Release release resources related to the Image.
-func (i *Image) Release() {
-
-}
-
-// Mesh implements a vertex collection and related things
-// for the vulkan renderer.
-type Mesh struct {
-	id string
-
-	ready chan struct{}
-}
-
-// ID returns Resource ID.
-func (m *Mesh) ID() string {
-	return m.id
-}
-
-// Ready returns a channel that is closed when the image
-// is in memory and ready for use.
-func (m *Mesh) Ready() <-chan struct{} {
-	return m.ready
-}
-
-// Sub returns all subresources of this texture.
-// Textures cannot have any subresources, so this is always nil.
-func (Mesh) Sub() []gfx.Resource {
-	return nil
+	return Buffer{
+		device: dev,
+		buffer: buffer,
+		memory: memory,
+	}, nil
 }
 
 // Buffer implements a generic vulkan buffer.
 type Buffer struct {
 	device vk.Device
-	memory Memory
 	buffer vk.Buffer
+
+	memory Memory
+}
+
+// Mem returns the Memory that the buffer is based on.
+func (b *Buffer) Mem() *Memory {
+	return &b.memory
+}
+
+// Get returns the vulkan Buffer handle.
+func (b *Buffer) Get() vk.Buffer {
+	return b.buffer
 }
 
 // Release destroys the buffer and memory asociated with it.
