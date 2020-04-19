@@ -191,14 +191,14 @@ func main() {
 			case <-timeService.FpsTicker().C:
 				if _, ok := <-vkRenderer.ResourceUpdate(srh, core.ResourceInstance{
 					ResourceID: "assets/suzanne.dae",
-					Position:   glm.Translate3D(0, 0, 0),
+					Position:   glm.Translate3D(-1, 1, 0),
 					Rotation:   glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
 				}); !ok {
 					fmt.Printf("Error: not updated resource\n")
 				}
 				if _, ok := <-vkRenderer.ResourceUpdate(crh, core.ResourceInstance{
 					ResourceID: "assets/cube.dae",
-					Position:   glm.Translate3D(0, 0, 0),
+					Position:   glm.Translate3D(1, -1, 0),
 					Rotation:   glm.HomogRotate3D(constant, glm.Vec3{0, 0, 1}),
 				}); !ok {
 					fmt.Printf("Error: not updated resource\n")

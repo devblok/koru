@@ -1,7 +1,11 @@
 // Package vkr implements the vulkan renderer.
 package vkr
 
-import "github.com/devblok/koru/src/gfx"
+import (
+	"github.com/devblok/koru/src/gfx"
+
+	vk "github.com/devblok/vulkan"
+)
 
 // Image implements vulkan image type, use for textures, etc.
 type Image struct {
@@ -55,4 +59,17 @@ func (m *Mesh) Ready() <-chan struct{} {
 // Textures cannot have any subresources, so this is always nil.
 func (Mesh) Sub() []gfx.Resource {
 	return nil
+}
+
+// Buffer implements a generic vulkan buffer.
+type Buffer struct {
+	device vk.Device
+	memory Memory
+	buffer vk.Buffer
+}
+
+// Release destroys the buffer and memory asociated with it.
+func (b *Buffer) Release() {
+	vk.DestroyBuffer(b.device, b.buffer, nil)
+	b.memory.Release()
 }

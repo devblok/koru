@@ -3,12 +3,14 @@ package vkr
 import (
 	"errors"
 	"fmt"
+	"unsafe"
 
 	vk "github.com/devblok/vulkan"
 )
 
 // Memory defines a usable memory region.
 type Memory struct {
+	mapped      bool
 	len, offset uint
 	device      vk.Device
 	memory      vk.DeviceMemory
@@ -29,8 +31,26 @@ func (m *Memory) Get() vk.DeviceMemory {
 	return m.memory
 }
 
+// Map maps the entire available memory region and
+// returns a pointer to the mapped area.
+func (m *Memory) Map() unsafe.Pointer {
+	var memMapped unsafe.Pointer
+	vk.MapMemory(m.device, m.memory, vk.DeviceSize(m.offset), vk.DeviceSize(m.len), 0, &memMapped)
+	m.mapped = true
+	return memMapped
+}
+
+// Unmap removes the memory mapping if it was mapped.
+func (m *Memory) Unmap() {
+	if m.mapped {
+		vk.UnmapMemory(m.device, m.memory)
+		m.mapped = false
+	}
+}
+
 // Release frees memory.
 func (m *Memory) Release() {
+	m.Unmap()
 	vk.FreeMemory(m.device, m.memory, nil)
 }
 
@@ -71,6 +91,7 @@ func (ma *MemoryAllocator) Malloc(req vk.MemoryRequirements, prop vk.MemoryPrope
 	if err := vk.Error(vk.AllocateMemory(ma.device, &mai, nil, &memory)); err != nil {
 		return Memory{}, fmt.Errorf("vk.AllocateMemory(): %s", err.Error())
 	}
+
 	return Memory{
 		offset: 0,
 		len:    uint(req.Size),
