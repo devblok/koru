@@ -1086,7 +1086,12 @@ func (v *VulkanRenderer) updateUniformBuffers(imageIdx uint32, set *resourceSet)
 	ubo.Projection[5] *= -1 // Flip from OpenGl to Vulkan projection
 
 	var mappedMemory unsafe.Pointer
-	vk.MapMemory(v.logicalDevice, set.uniformBuffersMemory[imageIdx].Get(), 0, vk.DeviceSize(unsafe.Sizeof(ubo)), 0, &mappedMemory)
+	vk.MapMemory(
+		v.logicalDevice,
+		set.uniformBuffersMemory[imageIdx].Get(),
+		vk.DeviceSize(set.uniformBuffersMemory[imageIdx].Offset()),
+		vk.DeviceSize(set.uniformBuffersMemory[imageIdx].Len()), 0,
+		&mappedMemory)
 	castMemory := *(*[]model.Uniform)(unsafe.Pointer(&sliceHeader{
 		Data: uintptr(mappedMemory),
 		Cap:  1,

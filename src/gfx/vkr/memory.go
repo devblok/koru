@@ -9,8 +9,19 @@ import (
 
 // Memory defines a usable memory region.
 type Memory struct {
-	device vk.Device
-	memory vk.DeviceMemory
+	len, offset uint
+	device      vk.Device
+	memory      vk.DeviceMemory
+}
+
+// Len returns the length of assigned memory.
+func (m *Memory) Len() uint {
+	return m.len
+}
+
+// Offset returns the start location of assigned memory.
+func (m *Memory) Offset() uint {
+	return m.offset
 }
 
 // Get returns the vulkan memory handle.
@@ -61,6 +72,8 @@ func (ma *MemoryAllocator) Malloc(req vk.MemoryRequirements, prop vk.MemoryPrope
 		return Memory{}, fmt.Errorf("vk.AllocateMemory(): %s", err.Error())
 	}
 	return Memory{
+		offset: 0,
+		len:    uint(req.Size),
 		device: ma.device,
 		memory: memory,
 	}, nil
