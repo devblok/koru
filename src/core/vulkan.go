@@ -605,7 +605,7 @@ func (v *VulkanRenderer) createTextureImage(set *resourceSet, texture image.Imag
 		ArrayLayers:   1,
 		Format:        vk.FormatR8g8b8a8Unorm,
 		Tiling:        vk.ImageTilingLinear,
-		InitialLayout: vk.ImageLayoutUndefined,
+		InitialLayout: vk.ImageLayoutTransferDstOptimal,
 		Usage:         vk.ImageUsageFlags(vk.ImageUsageTransferDstBit | vk.ImageUsageSampledBit),
 		SharingMode:   vk.SharingModeExclusive,
 		Samples:       vk.SampleCount1Bit,
@@ -649,9 +649,9 @@ func (v *VulkanRenderer) createTextureImage(set *resourceSet, texture image.Imag
 
 	vk.BindImageMemory(v.logicalDevice, set.textureImage, set.textureImageMemory.Get(), 0)
 
-	if err := v.transitionLayout(set.textureImage, vk.FormatR8g8b8a8Unorm, vk.ImageLayoutUndefined, vk.ImageLayoutTransferDstOptimal); err != nil {
-		return err
-	}
+	// if err := v.transitionLayout(set.textureImage, vk.FormatR8g8b8a8Unorm, vk.ImageLayoutUndefined, vk.ImageLayoutTransferDstOptimal); err != nil {
+	// 	return err
+	// }
 
 	if err := v.copyBufferToImage(set.textureBuffer.Get(), set.textureImage, uint32(bounds.Max.X), uint32(bounds.Max.Y)); err != nil {
 		return err

@@ -1,3 +1,8 @@
+// Copyright (c) 2019 devblok
+//
+// This software is released under the MIT License.
+// https://opensource.org/licenses/MIT
+
 // Package gfx defines rendering related features that renderers must implement.
 package gfx
 
@@ -30,4 +35,14 @@ type Loader interface {
 	// Load tries to find and load the resource
 	// asociated with the provided id.
 	Load(id string) (Resource, error)
+}
+
+// Extent2D defines an extent for 2 dimentions.
+type Extent2D struct {
+	Width, Height uint
+}
+
+// Extent3D defines an extent for 3 dimentions.
+type Extent3D struct {
+	Width, Height, Depth uint
 }
